@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+body { overflow-x: hidden; width: 100%; }
+#root { overflow-x: hidden; width: 100%; }
+@media (max-width: 640px) {
+  nav { padding: 0 12px; height: auto; min-height: 56px; }
+  nav > div:first-child span { font-size: 14px; }
+  nav > div:last-child button:nth-child(1) { display: none; }
+  nav > div:last-child button:nth-child(2) { display: none; }
+  nav > div:last-child button:nth-child(3) { display: none; }
+  nav > div:last-child button:nth-child(4) { font-size: 12px; padding: 7px 12px; }
+  aside { width: 56px; min-width: 56px; }
+  table { display: block; overflow-x: auto; }
+}
