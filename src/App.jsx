@@ -174,7 +174,7 @@ async function callClaude(prompt, maxTokens){
   const res = await fetch("/api/anthropic",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens||2000,messages:[{role:"user",content:prompt}]}),
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||2000,messages:[{role:"user",content:prompt}]}),
   });
   const data = await res.json();
   const text = (data.content||[]).map((b)=>b.text||"").join("");
@@ -232,7 +232,7 @@ async function extractTextFromFile(file){
           const base64=reader.result.split(",")[1];
           const res=await fetch("/api/anthropic",{
             method:"POST",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,
+            body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,
               messages:[{role:"user",content:[
                 {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
                 {type:"text",text:"Extract all text content from this document. Return only the text, no commentary."}
