@@ -171,7 +171,7 @@ function Spinner({color}){
 
 // ── Claude API ────────────────────────────────────────────────────────────────
 async function callClaude(prompt, maxTokens){
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
+  const res = await fetch("/api/anthropic",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens||2000,messages:[{role:"user",content:prompt}]}),
@@ -195,19 +195,28 @@ function loadMammoth(){
 async function extractTextFromFile(file){
   const name = file.name.toLowerCase();
 
-  // .docx / .doc — use mammoth from CDN
   if(name.endsWith(".docx")||name.endsWith(".doc")){
-    return new Promise(async(resolve,reject)=>{
+    return new Promise((resolve,reject)=>{
       const reader=new FileReader();
       reader.onload=async()=>{
         try{
-          const mammoth=await loadMammoth();
-          if(!mammoth) throw new Error("mammoth not available");
-          const result=await mammoth.extractRawText({arrayBuffer:reader.result});
-          const text=(result.value||"").trim();
-          if(text.length<20) reject(new Error("Document appears empty. Please paste the text directly."));
-          else resolve(text);
-        }catch(e){reject(new Error("Could not read Word document: "+e.message));}
+          if(!window.JSZip){
+            await new Promise((ok,fail)=>{
+              const s=document.createElement("script");
+              s.src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+              s.onload=ok;s.onerror=fail;
+              document.head.appendChild(s);
+            });
+          }
+          if(!window.JSZip)throw new Error("no jszip");
+          const zip=await window.JSZip.loadAsync(reader.result);
+          const xf=zip.file("word/document.xml");
+          if(!xf)throw new Error("invalid");
+          const xml=await xf.async("string");
+          const text=xml.replace(/<[^>]+>/g," ").replace(/[ \t\n\r]+/g," ").trim();
+          if(text.length<20)throw new Error("empty");
+          resolve(text);
+        }catch(e){reject(new Error("Could not read document. Please paste the text directly."));}
       };
       reader.onerror=()=>reject(new Error("File read failed."));
       reader.readAsArrayBuffer(file);
@@ -221,7 +230,7 @@ async function extractTextFromFile(file){
       reader.onload=async()=>{
         try{
           const base64=reader.result.split(",")[1];
-          const res=await fetch("https://api.anthropic.com/v1/messages",{
+          const res=await fetch("/api/anthropic",{
             method:"POST",headers:{"Content-Type":"application/json"},
             body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,
               messages:[{role:"user",content:[
