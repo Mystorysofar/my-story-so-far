@@ -2186,6 +2186,14 @@ export default function App(){
 
   // Auto-save to localStorage whenever data changes
   useEffect(()=>{try{localStorage.setItem("mssf_children",JSON.stringify(children));}catch(e){}},[children]);
+  // Load children from Supabase on mount
+  useEffect(()=>{
+    supabase.from('children').select('*').order('preferred_name').then(({data,error})=>{
+      if(!error && Array.isArray(data)){
+        setChildren(data);
+      }
+    });
+  },[]);
   useEffect(()=>{try{localStorage.setItem("mssf_chapters",JSON.stringify(chapters));}catch(e){}},[chapters]);
 
   useEffect(()=>{try{localStorage.setItem("mssf_homes",JSON.stringify(homes));}catch(e){}},[homes]);
