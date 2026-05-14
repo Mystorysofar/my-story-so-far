@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 import { useState, useRef, useEffect } from "react";
 
 // ── Global Styles ─────────────────────────────────────────────────────────────
@@ -2045,7 +2046,14 @@ function SignInModal({onLogin,onClose}){
   const trevorRoles=[{role:"admin"},{role:"manager"}];
   const displayRoles=isTrevor?trevorRoles:matchingUsers;
 
-  const handle=()=>{
+  const handle=async()=>{
+    try {
+      const r = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (r.data && r.data.user && !r.error) {
+        onLogin({id:r.data.user.id,name:r.data.user.email,email:r.data.user.email,role:'admin',homeId:1,subscription:'active'});
+        return;
+      }
+    } catch(e) {}
     // Direct match for Trevor — hardcoded fallback
     if(email.toLowerCase().includes("trevorelliottmbe")&&pass==="Trevor2025"){
       if(!selectedRole){setErr("Please select a role — Admin or Manager.");return;}
