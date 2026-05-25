@@ -768,16 +768,41 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
     setBulkLoading(false);
   };
 
-  const saveBulkAll=()=>{
+  const saveBulkAll=async()=>{
     if(!bulkResults||!selectedChild) return;
     const now=new Date();
-    const newChapters=bulkResults.map((r,i)=>({
-      id:Date.now()+i,childId:selectedChild.id,title:r.chapter.title,
+    const rows=bulkResults.map((r,i)=>({
+      child_id:selectedChild.id,
+      title:r.chapter.title,
+      content:r.chapter.content,
       date:r.reportDate?new Date(r.reportDate).toISOString():new Date(now.getFullYear(),now.getMonth()-bulkResults.length+i+1,1).toISOString(),
-      status:"pending",content:r.chapter.content,reportType:"monthly",
-      staffId:user.id,managerId:null,staffInsights:r.staffInsights,childProgress:r.childProgress,
+      status:"pending",
+      report_type:"monthly",
+      staff_id:user.id,
+      manager_id:null,
+      staff_insights:r.staffInsights||"",
+      child_progress:r.childProgress||"",
     }));
-    setChapters((p)=>[...p,...newChapters]);
+    const {data,error}=await supabase.from('chapters').insert(rows).select();
+    if(error){
+      console.warn('bulk chapter save failed, falling back to local',error.message);
+      const fallback=rows.map((row,i)=>({
+        id:Date.now()+i,childId:row.child_id,title:row.title,content:row.content,date:row.date,
+        status:row.status,reportType:row.report_type,staffId:row.staff_id,managerId:row.manager_id,
+        staffInsights:row.staff_insights,childProgress:row.child_progress,
+      }));
+      setChapters((p)=>[...p,...fallback]);
+    }else{
+      const translated=data.map(c=>({
+        id:c.id,childId:c.child_id,title:c.title,content:c.content||"",date:c.date,
+        status:c.status||"pending",reportType:c.report_type||"monthly",
+        staffId:c.staff_id,managerId:c.manager_id,
+        staffInsights:c.staff_insights||"",childProgress:c.child_progress||"",
+        sourceText:c.source_text||"",sourceFilename:c.source_filename||"",
+        created:c.created_at,
+      }));
+      setChapters((p)=>[...p,...translated]);
+    }
     setSaved(true);
   };
 
