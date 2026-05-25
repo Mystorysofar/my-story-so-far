@@ -2071,7 +2071,25 @@ function SignInModal({onLogin,onClose}){
     try {
       const r = await supabase.auth.signInWithPassword({ email, password: pass });
       if (r.data && r.data.user && !r.error) {
-        onLogin({id:r.data.user.id,name:r.data.user.email,email:r.data.user.email,role:'admin',homeId:1,subscription:'active'});
+        // Load profile row for this user — has role and home_id
+        const {data:profile,error:profileError}=await supabase
+          .from('profiles')
+          .select('id,name,role,home_id,subscription')
+          .eq('id',r.data.user.id)
+          .single();
+        if(profileError||!profile){
+          console.warn('profile load failed after login',profileError?.message);
+          setErr("Login succeeded but profile not found. Contact admin.");
+          return;
+        }
+        onLogin({
+          id:r.data.user.id,
+          name:profile.name||r.data.user.email,
+          email:r.data.user.email,
+          role:profile.role||'staff',
+          homeId:profile.home_id,
+          subscription:profile.subscription||'active',
+        });
         return;
       }
     } catch(e) {}
@@ -2207,11 +2225,22 @@ export default function App(){
 
   // Auto-save to localStorage whenever data changes
   useEffect(()=>{try{localStorage.setItem("mssf_children",JSON.stringify(children));}catch(e){}},[children]);
-  // Load children from Supabase on mount
+  // Load children from Supabase on mount, translating snake_case → camelCase
   useEffect(()=>{
     supabase.from('children').select('*').order('preferred_name').then(({data,error})=>{
-      if(!error && Array.isArray(data)){
-        setChildren(data);
+      if(error){console.warn('children load failed',error.message);return;}
+      if(Array.isArray(data) && data.length>0){
+        const translated=data.map(c=>({
+          id:c.id,
+          homeId:c.home_id,
+          preferredName:c.preferred_name,
+          dob:c.dob||"",
+          gender:c.gender||"",
+          notes:c.notes||"",
+          archived:!!c.archived,
+          created:c.created_at,
+        }));
+        setChildren(translated);
       }
     });
   },[]);
