@@ -1264,9 +1264,11 @@ function ApprovalsPage({user,children,chapters,setChapters}){
   const approve=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved",manager_id:user.id}).eq('id',id);if(error)console.warn('approve failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved",managerId:user.id}:c));};
   const publish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',id);if(error)console.warn('publish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"published"}:c));};
   const unpublish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',id);if(error)console.warn('unpublish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved"}:c));};
-  const reject=(id)=>setChapters((p)=>p.filter((c)=>c.id!==id));
+  const reject=async(id)=>{const {error}=await supabase.from('chapters').delete().eq('id',id);if(error)console.warn('reject failed',error.message);setChapters((p)=>p.filter((c)=>c.id!==id));};
   const startEdit=(ch)=>{setEditingId(ch.id);setEditContent({title:ch.title,content:ch.content});};
-  const saveEdit=(id)=>{
+  const saveEdit=async(id)=>{
+    const {error}=await supabase.from('chapters').update({title:editContent.title,content:editContent.content}).eq('id',id);
+    if(error)console.warn('saveEdit failed',error.message);
     setChapters((p)=>p.map((c)=>c.id===id?{...c,title:editContent.title,content:editContent.content}:c));
     setEditingId(null);
   };
