@@ -673,9 +673,12 @@ DOCUMENT: ${text.slice(0,3000)}`;
               <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 {cc.length>0&&<Btn size="sm" variant="secondary" onClick={()=>{setActiveChild(child);setPage("chapters");}}>📖 View Story</Btn>}
                 <Btn size="sm" onClick={()=>{setActiveChild(child);setPage("new-chapter");}}>✍️ {cc.length===0?"Start Story":"Add Report"}</Btn>
-                <button onClick={()=>{
-                  setChildren((p)=>p.map((c)=>c.id===child.id?{...c,archived:!c.archived}:c));
+                <button onClick={async()=>{
+                  const newArchived=!child.archived;
+                  setChildren((p)=>p.map((c)=>c.id===child.id?{...c,archived:newArchived}:c));
                   if(!child.archived) setShowArchived(false);
+                  const {error}=await supabase.from('children').update({archived:newArchived}).eq('id',child.id);
+                  if(error){console.warn('child archive update failed',error.message);}
                 }} style={{marginLeft:"auto",background:child.archived?"#EFF8F7":"#FFF8EE",border:"1px solid "+(child.archived?"#C0E0DC":"#F0D898"),cursor:"pointer",color:child.archived?"#1A6B6B":"#C8860A",fontSize:12,fontWeight:600,padding:"5px 12px",borderRadius:20,fontFamily:"inherit",transition:"all 0.18s"}}
                   title={child.archived?"Restore profile":"Archive profile"}>
                   {child.archived?"↩ Restore":"📦 Archive"}
