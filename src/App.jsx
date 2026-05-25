@@ -466,11 +466,11 @@ function Dashboard({user,children,chapters,setPage}){
 }
 
 // ── Children Page ─────────────────────────────────────────────────────────────
-function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild}){
+function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild,homes}){
   const [showForm,setShowForm]=useState(false);
   const [showArchived,setShowArchived]=useState(false);
   const [mode,setMode]=useState("upload");
-  const [form,setForm]=useState({preferredName:"",dob:"",gender:"",notes:"",childEmail:"",childPassword:""});
+  const [form,setForm]=useState({preferredName:"",dob:"",gender:"",notes:"",childEmail:"",childPassword:"",homeId:""});
   const [extracting,setExtracting]=useState(false);
   const [extracted,setExtracted]=useState(false);
   const [dragOver,setDragOver]=useState(false);
@@ -550,6 +550,12 @@ DOCUMENT: ${text.slice(0,3000)}`;
             {mode==="manual"&&(
               <div>
                 {extracted&&<div style={{padding:"12px 14px",background:"#EFF8F7",borderRadius:8,fontSize:14,color:"#1A6B6B",marginBottom:14,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>✅</span><span>Profile extracted from document — review the details below and click Save Profile</span></div>}
+                {user.role==="admin"&&(
+                  <div style={{marginBottom:14,padding:"12px 14px",background:"#F0F0FA",borderRadius:10,border:"1px solid #D0D0EA"}}>
+                    <p style={{fontSize:13,fontWeight:700,color:"#5B5EA6",marginBottom:8}}>🏛 Admin: which home is this child at?</p>
+                    <FSelect label="Home" value={form.homeId} onChange={(v)=>setForm((f)=>({...f,homeId:v}))} options={(homes||[]).filter(h=>h.status!=="inactive").map(h=>({value:String(h.id),label:h.name}))} placeholder="Select a home..." required/>
+                  </div>
+                )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <FInput label="Preferred Name" value={form.preferredName} onChange={(v)=>setForm((f)=>({...f,preferredName:v}))} required/>
                   <FInput label="Date of Birth" value={form.dob} onChange={(v)=>setForm((f)=>({...f,dob:v}))} type="date" required/>
@@ -2291,7 +2297,7 @@ export default function App(){
     </>
   );
 
-  const p={user,children,setChildren,chapters,setChapters,activeChild,setActiveChild,setPage};
+  const p={user,children,setChildren,chapters,setChapters,activeChild,setActiveChild,setPage,homes,setHomes};
 
   return(
     <><G/>
