@@ -736,9 +736,17 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
     setLoading(false);
   };
 
-  const saveEntry=()=>{
+  const saveEntry=async()=>{
     if(!result||!selectedChild) return;
-    setChapters((p)=>[...p,{id:Date.now(),childId:selectedChild.id,title:result.chapter.title,date:(reportMonth?new Date(reportMonth+'-01').toISOString():result.reportDate?new Date(result.reportDate).toISOString():new Date().toISOString()),status:"pending",content:result.chapter.content,reportType:"monthly",staffId:user.id,managerId:null,staffInsights:result.staffInsights,childProgress:result.childProgress}]);
+    const isoDate=reportMonth?new Date(reportMonth+'-01').toISOString():result.reportDate?new Date(result.reportDate).toISOString():new Date().toISOString();
+    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights:result.staffInsights||"",child_progress:result.childProgress||""};
+    const {data,error}=await supabase.from('chapters').insert(row).select().single();
+    if(error){
+      console.warn('chapter save failed, falling back to local',error.message);
+      setChapters((p)=>[...p,{id:Date.now(),childId:selectedChild.id,title:result.chapter.title,date:isoDate,status:"pending",content:result.chapter.content,reportType:"monthly",staffId:user.id,managerId:null,staffInsights:result.staffInsights,childProgress:result.childProgress}]);
+    }else{
+      setChapters((p)=>[...p,{id:data.id,childId:data.child_id,title:data.title,content:data.content||"",date:data.date,status:data.status||"pending",reportType:data.report_type||"monthly",staffId:data.staff_id,managerId:data.manager_id,staffInsights:data.staff_insights||"",childProgress:data.child_progress||"",sourceText:data.source_text||"",sourceFilename:data.source_filename||"",created:data.created_at}]);
+    }
     setSaved(true);
   };
 
