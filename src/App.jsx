@@ -1167,12 +1167,12 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
                             a.href=url;a.download=ch.title.replace(/ /g,"-")+".txt";a.click();URL.revokeObjectURL(url);
                           }}>⬇ Download</Btn>
                           {ch.status==="approved"&&(user.role==="manager"||user.role==="staff")&&(
-                            <Btn size="sm" onClick={(e)=>{e.stopPropagation();setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"published"}:c));}} style={{background:"#1A6B6B",color:"#fff"}}>
+                            <Btn size="sm" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',ch.id);if(error)console.warn('publish failed',error.message);setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"published"}:c));}} style={{background:"#1A6B6B",color:"#fff"}}>
                               📖 Publish to Child
                             </Btn>
                           )}
                           {ch.status==="published"&&(user.role==="manager"||user.role==="staff")&&(
-                            <Btn size="sm" variant="secondary" onClick={(e)=>{e.stopPropagation();setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"approved"}:c));}}>
+                            <Btn size="sm" variant="secondary" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',ch.id);if(error)console.warn('unpublish failed',error.message);setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"approved"}:c));}}>
                               ↩ Unpublish
                             </Btn>
                           )}
@@ -1261,9 +1261,9 @@ function ApprovalsPage({user,children,chapters,setChapters}){
   const [editingId,setEditingId]=useState(null);
   const [editContent,setEditContent]=useState({title:"",content:""});
 
-  const approve=(id)=>setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved",managerId:user.id}:c));
-  const publish=(id)=>setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"published"}:c));
-  const unpublish=(id)=>setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved"}:c));
+  const approve=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved",manager_id:user.id}).eq('id',id);if(error)console.warn('approve failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved",managerId:user.id}:c));};
+  const publish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',id);if(error)console.warn('publish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"published"}:c));};
+  const unpublish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',id);if(error)console.warn('unpublish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved"}:c));};
   const reject=(id)=>setChapters((p)=>p.filter((c)=>c.id!==id));
   const startEdit=(ch)=>{setEditingId(ch.id);setEditContent({title:ch.title,content:ch.content});};
   const saveEdit=(id)=>{
