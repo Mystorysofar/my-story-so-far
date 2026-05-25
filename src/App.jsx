@@ -476,13 +476,48 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
   const [dragOver,setDragOver]=useState(false);
   const fileRef=useRef();
 
-  const saveChild=()=>{
+  const saveChild=async()=>{
     if(!form.preferredName||!form.dob){
       alert("Please fill in the child's name and date of birth.");
       return;
     }
-    setChildren((p)=>[...p,{...form,id:Date.now(),homeId:user.homeId||1}]);
-    setForm({preferredName:"",dob:"",gender:"",notes:"",childEmail:"",childPassword:""});
+    // Determine which home this child belongs to
+    const targetHomeId = user.role==="admin" ? form.homeId : user.homeId;
+    if(!targetHomeId){
+      alert(user.role==="admin"
+        ? "Please select which home this child belongs to."
+        : "Your account is not assigned to a home. Contact admin.");
+      return;
+    }
+    // Insert into Supabase
+    const {data,error}=await supabase.from('children').insert({
+      home_id:targetHomeId,
+      preferred_name:form.preferredName,
+      dob:form.dob||null,
+      gender:form.gender||null,
+      notes:form.notes||null,
+      archived:false,
+    }).select().single();
+    if(error){
+      console.warn('children insert failed, falling back to local',error.message);
+      setChildren((p)=>[...p,{...form,id:Date.now(),homeId:targetHomeId}]);
+    } else if(data){
+      // Use the Supabase-returned row (with real UUID and timestamps),
+      // plus keep childEmail/childPassword in local state only (Session 5 will move these properly)
+      setChildren((p)=>[...p,{
+        id:data.id,
+        homeId:data.home_id,
+        preferredName:data.preferred_name,
+        dob:data.dob||"",
+        gender:data.gender||"",
+        notes:data.notes||"",
+        archived:!!data.archived,
+        created:data.created_at,
+        childEmail:form.childEmail||"",
+        childPassword:form.childPassword||"",
+      }]);
+    }
+    setForm({preferredName:"",dob:"",gender:"",notes:"",childEmail:"",childPassword:"",homeId:""});
     setExtracted(false);
     setShowForm(false);
   };
