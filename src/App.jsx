@@ -2288,6 +2288,31 @@ export default function App(){
       }
     });
   },[]);
+  // Load chapters from Supabase on mount, translating snake_case → camelCase
+  useEffect(()=>{
+    supabase.from('chapters').select('*').order('date',{ascending:false}).then(({data,error})=>{
+      if(error){console.warn('chapters load failed',error.message);return;}
+      if(Array.isArray(data) && data.length>0){
+        const translated=data.map(c=>({
+          id:c.id,
+          childId:c.child_id,
+          title:c.title,
+          content:c.content||"",
+          date:c.date,
+          status:c.status||"pending",
+          reportType:c.report_type||"monthly",
+          staffId:c.staff_id,
+          managerId:c.manager_id,
+          staffInsights:c.staff_insights||"",
+          childProgress:c.child_progress||"",
+          sourceText:c.source_text||"",
+          sourceFilename:c.source_filename||"",
+          created:c.created_at,
+        }));
+        setChapters(translated);
+      }
+    });
+  },[]);
   useEffect(()=>{try{localStorage.setItem("mssf_chapters",JSON.stringify(chapters));}catch(e){}},[chapters]);
 
   useEffect(()=>{try{localStorage.setItem("mssf_homes",JSON.stringify(homes));}catch(e){}},[homes]);  // Load homes from Supabase on mount, translating snake_case → camelCase
