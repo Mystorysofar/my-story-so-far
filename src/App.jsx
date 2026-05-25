@@ -1517,7 +1517,23 @@ function AdminDashboard({homes,users,chapters}){
 function AdminHomes({homes,setHomes}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",contact:"",plan:"starter"});
-  const save=()=>{if(!form.name||!form.contact) return;setHomes((p)=>[...p,{...form,id:Date.now(),status:"active",childCount:0,created:new Date().toISOString()}]);setForm({name:"",contact:"",plan:"starter"});setShowForm(false);};
+  const save=async()=>{
+    if(!form.name||!form.contact) return;
+    const {data,error}=await supabase.from('homes').insert({
+      name:form.name,
+      contact:form.contact,
+      plan:form.plan||"home",
+      status:"active",
+    }).select().single();
+    if(error){
+      console.warn('homes insert failed, falling back to local',error.message);
+      setHomes((p)=>[...p,{...form,id:Date.now(),status:"active",childCount:0,created:new Date().toISOString()}]);
+    } else if(data){
+      setHomes((p)=>[...p,{id:data.id,name:data.name,contact:data.contact||"",plan:data.plan||"home",status:data.status||"active",childCount:0,created:data.created_at}]);
+    }
+    setForm({name:"",contact:"",plan:"starter"});
+    setShowForm(false);
+  };
   return(
     <div>
       <div className="fu"><PageHeader title="Care Homes" subtitle="Manage registered homes and subscriptions." action={<Btn onClick={()=>setShowForm(v=>!v)}>{showForm?"Cancel":"+ Add Home"}</Btn>}/></div>
@@ -1545,7 +1561,12 @@ function AdminHomes({homes,setHomes}){
               <td style={{padding:12}}><Badge label={h.status} color={h.status}/></td>
               <td style={{padding:12,display:"flex",gap:6}}>
                 <Btn size="sm" variant="ghost">Edit</Btn>
-                <Btn size="sm" variant="danger" onClick={()=>setHomes(p=>p.map(x=>x.id===h.id?{...x,status:x.status==="active"?"inactive":"active"}:x))}>{h.status==="active"?"Suspend":"Activate"}</Btn>
+                <Btn size="sm" variant="danger" onClick={async()=>{
+                  const newStatus=h.status==="active"?"inactive":"active";
+                  setHomes(p=>p.map(x=>x.id===h.id?{...x,status:newStatus}:x));
+                  const {error}=await supabase.from('homes').update({status:newStatus}).eq('id',h.id);
+                  if(error){console.warn('homes status update failed',error.message);}
+                }}>{h.status==="active"?"Suspend":"Activate"}</Btn>
               </td>
             </tr>
           ))}</tbody>
@@ -2196,16 +2217,24 @@ export default function App(){
   },[]);
   useEffect(()=>{try{localStorage.setItem("mssf_chapters",JSON.stringify(chapters));}catch(e){}},[chapters]);
 
-  useEffect(()=>{try{localStorage.setItem("mssf_homes",JSON.stringify(homes));}catch(e){}},[homes]);
-  // Load homes from Supabase on mount
+  useEffect(()=>{try{localStorage.setItem("mssf_homes",JSON.stringify(homes));}catch(e){}},[homes]);  // Load homes from Supabase on mount, translating snake_case → camelCase
   useEffect(()=>{
     supabase.from('homes').select('*').order('name').then(({data,error})=>{
-      if(!error && data && data.length>0){
-        setHomes(data);
+      if(error){console.warn('homes load failed',error.message);return;}
+      if(Array.isArray(data) && data.length>0){
+        const translated=data.map(h=>({
+          id:h.id,
+          name:h.name,
+          contact:h.contact||"",
+          plan:h.plan||"home",
+          status:h.status||"active",
+          childCount:0,
+          created:h.created_at,
+        }));
+        setHomes(translated);
       }
     });
-  },[]);
-  // Clear any old demo data on first load
+  },[]);// Clear any old demo data on first load
   useEffect(()=>{
     try{
       const ver=localStorage.getItem("mssf_version");
