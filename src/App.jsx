@@ -713,8 +713,8 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
   const fileRef=useRef();
   const bulkFileRef=useRef();
 
-  const selectedChild=children.find((c)=>c.id===Number(selectedId));
-  const prevChapters=chapters.filter((c)=>c.childId===Number(selectedId)&&(c.status==="approved"||c.status==="published"));
+  const selectedChild=children.find((c)=>c.id===selectedId);
+  const prevChapters=chapters.filter((c)=>c.childId===selectedId&&(c.status==="approved"||c.status==="published"));
 
   const handleFileDrop=async(e)=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)await loadFile(f);};
   const handleFileSelect=async(e)=>{const f=e.target.files[0];if(f)await loadFile(f);};
@@ -853,7 +853,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       <div className="fu2" style={{marginBottom:16}}>
         <Card>
           <div style={{fontSize:12,fontWeight:700,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Select Child</div>
-          <FSelect value={selectedId} onChange={(v)=>{setSelectedId(v);setActiveChild(children.find((c)=>c.id===Number(v))||null);}} options={children.filter((c)=>!c.archived).map((c)=>({value:String(c.id),label:c.preferredName}))} placeholder="Choose a child..."/>
+          <FSelect value={selectedId} onChange={(v)=>{setSelectedId(v);setActiveChild(children.find((c)=>c.id===v)||null);}} options={children.filter((c)=>!c.archived).map((c)=>({value:String(c.id),label:c.preferredName}))} placeholder="Choose a child..."/>
           {selectedChild?.notes&&<div style={{marginTop:10,padding:"8px 12px",background:"#EFE9DE",borderRadius:8,fontSize:13,color:"#6B5A3E"}}>📌 {selectedChild.notes}</div>}
         </Card>
       </div>
@@ -1044,8 +1044,8 @@ function ChaptersPage({user,children,chapters,setChapters,setPage,activeChild,se
   const [tab,setTab]=useState("story");
   const [hasSubscription]=useState(user.subscription==="active");
 
-  const filtered=chapters.filter((c)=>filterChildId?c.childId===Number(filterChildId):true);
-  const filterChild=children.find((c)=>c.id===Number(filterChildId));
+  const filtered=chapters.filter((c)=>filterChildId?c.childId===filterChildId:true);
+  const filterChild=children.find((c)=>c.id===filterChildId);
   const approved=filtered.filter((c)=>c.status==="approved"||c.status==="published");
   const trendData=approved.filter((c)=>c.childProgress).map((c)=>({date:fmtDate(c.date),mood:c.childProgress.mood||0,effort:c.childProgress.effort||0,social:c.childProgress.social||0}));
 
@@ -1120,7 +1120,7 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
           action={filterChildId&&<Btn variant="secondary" size="sm" onClick={downloadFullBook}>📥 {hasSubscription?"Download Story PDF":"🔒 PDF (Subscribers Only)"}</Btn>}/>
       </div>
       <div className="fu1"><Card style={{marginBottom:20}}>
-        <FSelect label="Filter by child" value={filterChildId} onChange={(v)=>{setFilterChildId(v);setActiveChild(children.find((c)=>c.id===Number(v))||null);}} options={children.filter((c)=>!c.archived).map((c)=>({value:String(c.id),label:c.preferredName}))} placeholder="All children"/>
+        <FSelect label="Filter by child" value={filterChildId} onChange={(v)=>{setFilterChildId(v);setActiveChild(children.find((c)=>c.id===v)||null);}} options={children.filter((c)=>!c.archived).map((c)=>({value:String(c.id),label:c.preferredName}))} placeholder="All children"/>
       </Card></div>
 
       {filterChildId&&(
