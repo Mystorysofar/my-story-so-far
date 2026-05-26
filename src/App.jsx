@@ -1625,7 +1625,7 @@ function AdminHomes({homes,setHomes}){
             <FSelect label="Plan" value={form.plan} onChange={(v)=>setForm(f=>({...f,plan:v}))} options={[{value:"starter",label:"Starter — £49/mo"},{value:"home",label:"Home — £99/mo"},{value:"organisation",label:"Organisation — £199/mo"}]}/>
             <div/>
           </div>
-          <div style={{marginTop:14}}><Btn onClick={save}>Create Home & Send Welcome Email</Btn></div>
+          <div style={{marginTop:14}}><Btn onClick={save}>Create Home</Btn></div>
         </Card></div>
       )}
       <div className="fu1"><Card>
