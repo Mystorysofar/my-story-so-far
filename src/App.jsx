@@ -1639,7 +1639,7 @@ function AdminHomes({homes,setHomes}){
               <td style={{padding:12,color:"#7A6E62"}}>{h.childCount}</td>
               <td style={{padding:12}}><Badge label={h.status} color={h.status}/></td>
               <td style={{padding:12,display:"flex",gap:6}}>
-                <Btn size="sm" variant="ghost">Edit</Btn>
+                {/* Edit hidden until handler is built — currently a stub. Suspend/Activate works. */}
                 <Btn size="sm" variant="danger" onClick={async()=>{
                   const newStatus=h.status==="active"?"inactive":"active";
                   setHomes(p=>p.map(x=>x.id===h.id?{...x,status:newStatus}:x));
@@ -1778,10 +1778,12 @@ function AdminUsers(){
               <td style={{padding:12,color:"#7A6E62",fontSize:13}}>{u.email}</td>
               <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
               <td style={{padding:12}}>{u.mustChangePassword?<span style={{fontSize:12,color:"#C8860A",fontWeight:600}}>⏳ Pending</span>:<span style={{fontSize:12,color:"#2D7D6B",fontWeight:600}}>✓ Set</span>}</td>
-              <td style={{padding:12}}><div style={{display:"flex",gap:6}}>
-                <Btn size="sm" variant="ghost">Edit</Btn>
-                <Btn size="sm" variant="danger" onClick={()=>setConfirmDelete(u)}>🗑 Delete</Btn>
-              </div></td>
+              <td style={{padding:12}}>
+                {/* Edit and Delete hidden until Session 5 wires real CRUD against Supabase.
+                    Existing handlers (deleteUser, confirmDelete dialog) only touch React state + localStorage,
+                    not Supabase auth or profiles. Dialog was misleadingly worded. */}
+                <span style={{fontSize:12,color:"#7A6E62",fontStyle:"italic"}}>—</span>
+              </td>
             </tr>
           ))}</tbody>
         </table>
