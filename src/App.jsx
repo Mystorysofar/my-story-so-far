@@ -2319,6 +2319,8 @@ function SignInModal({onLogin,onClose}){
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function App(){
   const [user,setUser]=useState(null);
+  const [authLoading,setAuthLoading]=useState(true);
+  const [needsPasswordSet,setNeedsPasswordSet]=useState(false);
   const [showLogin,setShowLogin]=useState(false);
   const [page,setPage]=useState("dashboard");
   const [children,setChildren]=useState(()=>{
@@ -2417,7 +2419,56 @@ export default function App(){
         setHomes(translated);
       }
     });
-  },[]);// Clear any old demo data on first load
+  },[]);
+
+  // Session restoration — check for an existing Supabase session on mount.
+  // Triggered on initial load AND on auth events (sign-in, sign-out, invite redirect).
+  // When a session is found, load the matching profile row and call handleLogin
+  // so the rest of the app treats this exactly like a fresh sign-in.
+  useEffect(()=>{
+    let cancelled=false;
+    const hydrateFromSession=async(session)=>{
+      if(cancelled) return;
+      if(!session||!session.user){ setAuthLoading(false); return; }
+      const {data:profile,error:profileError}=await supabase
+        .from('profiles')
+        .select('id,name,role,home_id,subscription')
+        .eq('id',session.user.id)
+        .single();
+      if(cancelled) return;
+      if(profileError||!profile){
+        console.warn('session restore: profile not found',profileError?.message);
+        setAuthLoading(false);
+        return;
+      }
+      // Detect freshly-invited users who have never set a password.
+      // Supabase sets last_sign_in_at on every sign-in, including the implicit
+      // one triggered by clicking an invite link. If it's within ~5 seconds of
+      // created_at, this is their very first session.
+      const created=session.user.created_at?new Date(session.user.created_at).getTime():0;
+      const lastSignIn=session.user.last_sign_in_at?new Date(session.user.last_sign_in_at).getTime():0;
+      const firstEverSession=created>0&&lastSignIn>0&&Math.abs(lastSignIn-created)<5000;
+      setNeedsPasswordSet(firstEverSession);
+      handleLogin({
+        id:session.user.id,
+        name:profile.name||session.user.email,
+        email:session.user.email,
+        role:profile.role||'staff',
+        homeId:profile.home_id,
+        subscription:profile.subscription||'active',
+      });
+      setAuthLoading(false);
+    };
+    supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
+    const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
+      if(event==='SIGNED_OUT'){ setUser(null); setNeedsPasswordSet(false); setPage('dashboard'); }
+    });
+    return ()=>{ cancelled=true; listener?.subscription?.unsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  // Clear any old demo data on first load
   useEffect(()=>{
     try{
       const ver=localStorage.getItem("mssf_version");
@@ -2438,6 +2489,12 @@ export default function App(){
     else setPage("dashboard");
   };
 
+  if(authLoading) return(
+    <><G/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#F8F5F0",color:"#7A6E62",fontSize:14}}>Loading…</div>
+    </>
+  );
+
   if(!user) return(
     <><G/>
       <LandingPage onShowLogin={()=>setShowLogin(true)}/>
@@ -2450,7 +2507,7 @@ export default function App(){
   return(
     <><G/>
       <div style={{display:"flex",minHeight:"100vh"}}>
-        <Sidebar user={user} page={page} setPage={setPage} onLogout={()=>{setUser(null);setPage("dashboard");}}/>
+        <Sidebar user={user} page={page} setPage={setPage} onLogout={async()=>{await supabase.auth.signOut();setUser(null);setNeedsPasswordSet(false);setPage("dashboard");}}/>
         <main style={{flex:1,padding:"32px 36px",overflowY:"auto",background:"#F8F5F0"}}>
           {page==="dashboard"        &&<Dashboard        {...p}/>}
           {page==="children"         &&<ChildrenPage      {...p}/>}
