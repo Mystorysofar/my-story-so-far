@@ -2129,6 +2129,7 @@ function SignInModal({onLogin,onClose}){
   const [submitted,setSubmitted]=useState(false);
 
   const [selectedRole,setSelectedRole]=useState("");
+  const [loginFailed,setLoginFailed]=useState(false);
 
   // Load child accounts from localStorage
   const storedChildren=(() => {
@@ -2172,6 +2173,7 @@ function SignInModal({onLogin,onClose}){
         return;
       }
     } catch(e) {}
+    setLoginFailed(true);
     // Direct match for Trevor — hardcoded fallback
     if(email.toLowerCase().includes("trevorelliottmbe")&&pass==="Trevor2025"){
       if(!selectedRole){setErr("Please select a role — Admin or Manager.");return;}
@@ -2220,7 +2222,7 @@ function SignInModal({onLogin,onClose}){
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <FInput label="Email" value={email} onChange={setEmail} type="email" placeholder="your@email.org"/>
                 <FInput label="Password" value={pass} onChange={setPass} type="password" placeholder="••••••••"/>
-                {multipleRoles&&(
+                {loginFailed&&multipleRoles&&(
                   <div>
                     <label style={{fontSize:12,fontWeight:600,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Sign in as</label>
                     <div style={{display:"flex",gap:8}}>
