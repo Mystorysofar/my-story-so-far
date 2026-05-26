@@ -2393,7 +2393,7 @@ export default function App(){
         const translated=data.map(p=>({
           id:p.id,
           name:p.name||"",
-          email:"",
+          email:p.email||"",
           role:p.role||"staff",
           homeId:p.home_id,
           childId:p.child_id,
