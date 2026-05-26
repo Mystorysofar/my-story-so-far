@@ -1655,10 +1655,11 @@ function AdminHomes({homes,setHomes}){
   );
 }
 
-function AdminUsers(){
+function AdminUsers({users,setUsers}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",email:"",role:"staff",password:"",homeId:"",tempPassword:true});
-  const [allUsers,setAllUsers]=useState(()=>loadUsers());
+  const allUsers=users;
+  const setAllUsers=setUsers;
   const [notifySent,setNotifySent]=useState(null);
   const [confirmDelete,setConfirmDelete]=useState(null);
 
@@ -1707,7 +1708,9 @@ function AdminUsers(){
 
   return(
     <div>
-      <div className="fu"><PageHeader title="All Users" subtitle="Manage staff, managers, children and admins." action={<Btn onClick={()=>setShowForm(v=>!v)}>{showForm?"Cancel":"+ Add User"}</Btn>}/></div>
+      {/* Add User button hidden until Sitting 2 wires real Supabase Auth user creation.
+          Current save() only writes localStorage + Formspree email; new users couldn't actually log in. */}
+      <div className="fu"><PageHeader title="All Users" subtitle="Manage staff, managers, children and admins."/></div>
 
       {notifySent&&(
         <div className="fu" style={{marginBottom:16,padding:"12px 16px",background:"#EFF8F7",borderRadius:10,border:"1px solid #C0E0DC",fontSize:13,color:"#1A6B6B",display:"flex",alignItems:"center",gap:10}}>
@@ -2304,7 +2307,26 @@ export default function App(){
   const [homes,setHomes]=useState(()=>{
     try{const s=localStorage.getItem("mssf_homes");return s?JSON.parse(s):[{id:1,name:"My Care Home",contact:"",plan:"home",status:"active",childCount:0,created:new Date().toISOString()}];}catch(e){return [{id:1,name:"My Care Home",contact:"",plan:"home",status:"active",childCount:0,created:new Date().toISOString()}];}
   });
-  const [allUsers,setAllUsers]=useState(USERS.slice());
+  const [allUsers,setAllUsers]=useState([]);
+  // Load users from Supabase profiles on mount, translating snake_case → camelCase
+  useEffect(()=>{
+    supabase.from('profiles').select('*').order('name').then(({data,error})=>{
+      if(error){console.warn('profiles load failed',error.message);return;}
+      if(Array.isArray(data) && data.length>0){
+        const translated=data.map(p=>({
+          id:p.id,
+          name:p.name||"",
+          email:"",
+          role:p.role||"staff",
+          homeId:p.home_id,
+          childId:p.child_id,
+          subscription:p.subscription||"active",
+          mustChangePassword:false,
+        }));
+        setAllUsers(translated);
+      }
+    });
+  },[]);
 
   // Auto-save to localStorage whenever data changes
   useEffect(()=>{try{localStorage.setItem("mssf_children",JSON.stringify(children));}catch(e){}},[children]);
