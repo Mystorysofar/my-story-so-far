@@ -2149,6 +2149,57 @@ function LandingPage({onShowLogin}){
   );
 }
 
+function SetPasswordScreen({user,onPasswordSet,onCancel}){
+  const [password,setPassword]=useState("");
+  const [confirm,setConfirm]=useState("");
+  const [err,setErr]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  const handle=async()=>{
+    setErr("");
+    if(password.length<8){ setErr("Password must be at least 8 characters."); return; }
+    if(password!==confirm){ setErr("Passwords don't match."); return; }
+    setSaving(true);
+    try{
+      const {error}=await supabase.auth.updateUser({password,data:{needs_password_set:false}});
+      if(error){ setErr(error.message||"Could not save password. Try again."); setSaving(false); return; }
+      onPasswordSet();
+    }catch(e){
+      setErr("Network error. Check your connection and try again.");
+      setSaving(false);
+    }
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"#F8F5F0",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
+      <div className="fu" style={{width:"100%",maxWidth:440}}>
+        <Card style={{padding:40}}>
+          <div style={{fontSize:42,marginBottom:12,textAlign:"center"}}>👋</div>
+          <h2 style={{fontSize:22,marginBottom:8,textAlign:"center"}}>Welcome to My Story So Far</h2>
+          <p style={{color:"#7A6E62",fontSize:14,lineHeight:1.6,marginBottom:24,textAlign:"center"}}>
+            Set a password to finish setting up your account.
+          </p>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,color:"#7A6E62",marginBottom:4}}>Email</label>
+            <input type="email" value={user?.email||""} disabled style={{width:"100%",padding:"10px 12px",border:"1px solid #E5DDD2",borderRadius:8,background:"#F4EFE8",color:"#7A6E62",fontSize:14}}/>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,color:"#7A6E62",marginBottom:4}}>New password</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus placeholder="At least 8 characters" style={{width:"100%",padding:"10px 12px",border:"1px solid #E5DDD2",borderRadius:8,fontSize:14}}/>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,color:"#7A6E62",marginBottom:4}}>Confirm password</label>
+            <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") handle();}} style={{width:"100%",padding:"10px 12px",border:"1px solid #E5DDD2",borderRadius:8,fontSize:14}}/>
+          </div>
+          {err&&<div style={{color:"#B23A2E",fontSize:13,marginBottom:12,padding:"8px 12px",background:"#FBEAE7",borderRadius:6}}>{err}</div>}
+          <Btn onClick={handle} disabled={saving} style={{width:"100%",marginBottom:8}}>{saving?"Saving…":"Save password and continue"}</Btn>
+          <button onClick={onCancel} style={{width:"100%",padding:"10px 12px",background:"transparent",border:"none",color:"#7A6E62",fontSize:13,cursor:"pointer"}}>Sign out instead</button>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function SignInModal({onLogin,onClose}){
   const [email,setEmail]=useState("");
   const [pass,setPass]=useState("");
@@ -2445,10 +2496,11 @@ export default function App(){
       // Supabase sets last_sign_in_at on every sign-in, including the implicit
       // one triggered by clicking an invite link. If it's within ~5 seconds of
       // created_at, this is their very first session.
+      const meta=session.user.user_metadata||{};
       const created=session.user.created_at?new Date(session.user.created_at).getTime():0;
       const lastSignIn=session.user.last_sign_in_at?new Date(session.user.last_sign_in_at).getTime():0;
-      const firstEverSession=created>0&&lastSignIn>0&&Math.abs(lastSignIn-created)<5000;
-      setNeedsPasswordSet(firstEverSession);
+      const firstEverSession=created>0&&lastSignIn>0&&(lastSignIn-created)<60000;
+      setNeedsPasswordSet(meta.needs_password_set===true||firstEverSession);
       handleLogin({
         id:session.user.id,
         name:profile.name||session.user.email,
@@ -2499,6 +2551,16 @@ export default function App(){
     <><G/>
       <LandingPage onShowLogin={()=>setShowLogin(true)}/>
       {showLogin&&<SignInModal onLogin={handleLogin} onClose={()=>setShowLogin(false)}/>}
+    </>
+  );
+
+  if(needsPasswordSet) return(
+    <><G/>
+      <SetPasswordScreen
+        user={user}
+        onPasswordSet={()=>setNeedsPasswordSet(false)}
+        onCancel={async()=>{await supabase.auth.signOut();setUser(null);setNeedsPasswordSet(false);setPage("dashboard");}}
+      />
     </>
   );
 
