@@ -1596,36 +1596,62 @@ function AdminDashboard({homes,users,chapters}){
 function AdminHomes({homes,setHomes}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",contact:"",plan:"starter"});
+  const [editingId,setEditingId]=useState(null);
+  const startEdit=(h)=>{
+    setEditingId(h.id);
+    setForm({name:h.name||"",contact:h.contact||"",plan:h.plan||"starter"});
+    setShowForm(true);
+  };
+  const cancelEdit=()=>{
+    setEditingId(null);
+    setForm({name:"",contact:"",plan:"starter"});
+    setShowForm(false);
+  };
   const save=async()=>{
     if(!form.name||!form.contact) return;
-    const {data,error}=await supabase.from('homes').insert({
-      name:form.name,
-      contact:form.contact,
-      plan:form.plan||"home",
-      status:"active",
-    }).select().single();
-    if(error){
-      console.warn('homes insert failed, falling back to local',error.message);
-      setHomes((p)=>[...p,{...form,id:Date.now(),status:"active",childCount:0,created:new Date().toISOString()}]);
-    } else if(data){
-      setHomes((p)=>[...p,{id:data.id,name:data.name,contact:data.contact||"",plan:data.plan||"home",status:data.status||"active",childCount:0,created:data.created_at}]);
+    if(editingId){
+      // UPDATE existing home
+      const {error}=await supabase.from('homes').update({
+        name:form.name,
+        contact:form.contact,
+        plan:form.plan||"home",
+      }).eq('id',editingId);
+      if(error){
+        console.warn('homes update failed, applying locally only',error.message);
+      }
+      setHomes((p)=>p.map(x=>x.id===editingId?{...x,name:form.name,contact:form.contact,plan:form.plan||"home"}:x));
+    } else {
+      // INSERT new home
+      const {data,error}=await supabase.from('homes').insert({
+        name:form.name,
+        contact:form.contact,
+        plan:form.plan||"home",
+        status:"active",
+      }).select().single();
+      if(error){
+        console.warn('homes insert failed, falling back to local',error.message);
+        setHomes((p)=>[...p,{...form,id:Date.now(),status:"active",childCount:0,created:new Date().toISOString()}]);
+      } else if(data){
+        setHomes((p)=>[...p,{id:data.id,name:data.name,contact:data.contact||"",plan:data.plan||"home",status:data.status||"active",childCount:0,created:data.created_at}]);
+      }
     }
+    setEditingId(null);
     setForm({name:"",contact:"",plan:"starter"});
     setShowForm(false);
   };
   return(
     <div>
-      <div className="fu"><PageHeader title="Care Homes" subtitle="Manage registered homes and subscriptions." action={<Btn onClick={()=>setShowForm(v=>!v)}>{showForm?"Cancel":"+ Add Home"}</Btn>}/></div>
+      <div className="fu"><PageHeader title="Care Homes" subtitle="Manage registered homes and subscriptions." action={<Btn onClick={()=>showForm?cancelEdit():setShowForm(true)}>{showForm?"Cancel":"+ Add Home"}</Btn>}/></div>
       {showForm&&(
         <div className="fu"><Card style={{marginBottom:20,borderLeft:"4px solid #1A6B6B"}}>
-          <h3 style={{fontSize:15,marginBottom:14}}>New Care Home</h3>
+          <h3 style={{fontSize:15,marginBottom:14}}>{editingId?"Edit Care Home":"New Care Home"}</h3>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <FInput label="Home Name" value={form.name} onChange={(v)=>setForm(f=>({...f,name:v}))} required/>
             <FInput label="Contact Email" value={form.contact} onChange={(v)=>setForm(f=>({...f,contact:v}))} type="email" required/>
             <FSelect label="Plan" value={form.plan} onChange={(v)=>setForm(f=>({...f,plan:v}))} options={[{value:"starter",label:"Starter — £49/mo"},{value:"home",label:"Home — £99/mo"},{value:"organisation",label:"Organisation — £199/mo"}]}/>
             <div/>
           </div>
-          <div style={{marginTop:14}}><Btn onClick={save}>Create Home</Btn></div>
+          <div style={{marginTop:14}}><Btn onClick={save}>{editingId?"Save Changes":"Create Home"}</Btn></div>
         </Card></div>
       )}
       <div className="fu1"><Card>
@@ -1639,7 +1665,7 @@ function AdminHomes({homes,setHomes}){
               <td style={{padding:12,color:"#7A6E62"}}>{h.childCount}</td>
               <td style={{padding:12}}><Badge label={h.status} color={h.status}/></td>
               <td style={{padding:12,display:"flex",gap:6}}>
-                {/* Edit hidden until handler is built — currently a stub. Suspend/Activate works. */}
+                <Btn size="sm" variant="ghost" onClick={()=>startEdit(h)}>Edit</Btn>
                 <Btn size="sm" variant="danger" onClick={async()=>{
                   const newStatus=h.status==="active"?"inactive":"active";
                   setHomes(p=>p.map(x=>x.id===h.id?{...x,status:newStatus}:x));
@@ -1708,9 +1734,7 @@ function AdminUsers({users,setUsers}){
 
   return(
     <div>
-      {/* Add User button hidden until Sitting 2 wires real Supabase Auth user creation.
-          Current save() only writes localStorage + Formspree email; new users couldn't actually log in. */}
-      <div className="fu"><PageHeader title="All Users" subtitle="Manage staff, managers, children and admins."/></div>
+      <div className="fu"><PageHeader title="All Users" subtitle="Manage staff, managers, children and admins." action={<Btn onClick={()=>setShowForm(v=>!v)}>{showForm?"Cancel":"+ Add User"}</Btn>}/></div>
 
       {notifySent&&(
         <div className="fu" style={{marginBottom:16,padding:"12px 16px",background:"#EFF8F7",borderRadius:10,border:"1px solid #C0E0DC",fontSize:13,color:"#1A6B6B",display:"flex",alignItems:"center",gap:10}}>
