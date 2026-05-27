@@ -21,8 +21,16 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Not signed in' });
     }
 
+    // Validate the caller's token using the publishable key (admin client uses
+    // service_role which the auth endpoint rejects for getUser with legacy keys off).
+    const publishableKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+    if (!publishableKey) {
+      return res.status(500).json({ error: 'Server is missing publishable key' });
+    }
+    const browserClient = createClient(supabaseUrl, publishableKey, { auth: { persistSession: false } });
+    const { data: userResult, error: userErr } = await browserClient.auth.getUser(token);
+    // Admin client is built only after token validation succeeds
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    const { data: userResult, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !userResult?.user) {
       console.error('[invite-user] getUser failed:', { msg: userErr && userErr.message, hasUser: !!(userResult && userResult.user), tokenStart: token.slice(0, 12) });
       return res.status(401).json({ error: 'Invalid session', detail: (userErr && userErr.message) || 'no user' });
