@@ -1683,44 +1683,49 @@ function AdminHomes({homes,setHomes}){
 
 function AdminUsers({users,setUsers,homes,user}){
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({name:"",email:"",role:"staff",password:"",homeId:"",tempPassword:true});
+  const [form,setForm]=useState({name:"",email:"",role:"staff",home_id:""});
   const allUsers=users;
   const setAllUsers=setUsers;
   const [notifySent,setNotifySent]=useState(null);
   const [confirmDelete,setConfirmDelete]=useState(null);
 
-  const generateTemp=()=>{
-    const chars="ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    return Array.from({length:8},()=>chars[Math.floor(Math.random()*chars.length)]).join("");
-  };
-
   const save=async()=>{
-    if(!form.name||!form.email||!form.password){alert("Please fill in name, email and password.");return;}
-    const newUser={...form,id:Date.now(),homeId:Number(form.homeId)||1,subscription:"active",mustChangePassword:form.tempPassword};
-    setAllUsers(p=>{
-      const updated=[...p,newUser];
-      try{localStorage.setItem("mssf_users",JSON.stringify(updated));}catch(e){}
-      return updated;
-    });
-    // Notify via Formspree
+    if(!form.name||!form.email){alert("Please fill in name and email.");return;}
+    if(!form.role){alert("Please select a role.");return;}
     try{
-      await fetch("https://formspree.io/f/xkoyowen",{
+      const { data:{session} } = await supabase.auth.getSession();
+      if(!session){alert("Your session has expired. Please sign in again.");return;}
+      const res = await fetch("/api/invite-user",{
         method:"POST",
-        headers:{"Content-Type":"application/json","Accept":"application/json"},
-        body:JSON.stringify({
-          _subject:"Your My Story So Far Account Details",
-          to_name:form.name,
-          to_email:form.email,
-          role:form.role,
-          login_email:form.email,
-          temporary_password:form.password,
-          message:`Welcome to My Story So Far! Your account has been created. Login at mystorysofar.co.uk with email: ${form.email} and password: ${form.password}${form.tempPassword?" — please change your password after first login.":""}`,
+        headers:{
+          "Content-Type":"application/json",
+          "Authorization":`Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          home_id: form.home_id || null,
         }),
       });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){
+        alert(`Could not send invite: ${data.error || res.statusText}`);
+        return;
+      }
       setNotifySent(form.email);
-    }catch(e){}
-    setForm({name:"",email:"",role:"staff",password:"",homeId:"",tempPassword:true});
-    setShowForm(false);
+      setForm({name:"",email:"",role:"staff",home_id:""});
+      setShowForm(false);
+      // Reload users so the new pending row appears
+      const { data:rows } = await supabase.from('profiles').select('*').order('name');
+      if(rows) setAllUsers(rows.map(p=>({
+        id:p.id, name:p.name||"", email:p.email||"",
+        role:p.role||"staff", homeId:p.home_id, childId:p.child_id,
+        subscription:p.subscription||"active",
+      })));
+    }catch(e){
+      alert(`Network error: ${e.message}`);
+    }
   };
 
   const deleteUser=(id)=>{
@@ -1739,7 +1744,7 @@ function AdminUsers({users,setUsers,homes,user}){
       {notifySent&&(
         <div className="fu" style={{marginBottom:16,padding:"12px 16px",background:"#EFF8F7",borderRadius:10,border:"1px solid #C0E0DC",fontSize:13,color:"#1A6B6B",display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>✅</span>
-          <span>User created and login details sent to <strong>{notifySent}</strong> — they should receive their credentials shortly.</span>
+          <span>Invite email sent to <strong>{notifySent}</strong> — they'll set their own password from the link.</span>
           <button onClick={()=>setNotifySent(null)} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"#1A6B6B",fontSize:16}}>✕</button>
         </div>
       )}
@@ -1747,36 +1752,16 @@ function AdminUsers({users,setUsers,homes,user}){
       {showForm&&(
         <div className="fu"><Card style={{marginBottom:20,borderLeft:"4px solid #5B5EA6"}}>
           <h3 style={{fontSize:15,marginBottom:4}}>New User</h3>
-          <p style={{fontSize:13,color:"#7A6E62",marginBottom:16}}>Once created, login details will be sent to the user automatically via email.</p>
+          <p style={{fontSize:13,color:"#7A6E62",marginBottom:16}}>An invite email will be sent to the address below. The user clicks the link, sets their own password, and signs in.</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <FInput label="Full Name" value={form.name} onChange={(v)=>setForm(f=>({...f,name:v}))} required/>
             <FInput label="Email Address" value={form.email} onChange={(v)=>setForm(f=>({...f,email:v}))} type="email" required/>
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>Password</div>
-              <div style={{display:"flex",gap:8}}>
-                <input type="text" value={form.password} onChange={(e)=>setForm(f=>({...f,password:e.target.value}))} placeholder="Set password..."
-                  style={{flex:1,padding:"9px 13px",borderRadius:8,border:"1px solid #DDD3C0",background:"#F8F5F0",fontSize:14,color:"#1A1612",outline:"none"}}/>
-                <button onClick={()=>setForm(f=>({...f,password:generateTemp()}))}
-                  style={{padding:"9px 12px",borderRadius:8,border:"1px solid #DDD3C0",background:"#EFE9DE",cursor:"pointer",fontSize:12,fontWeight:600,color:"#7A6E62",whiteSpace:"nowrap",fontFamily:"inherit"}}>
-                  🎲 Generate
-                </button>
-              </div>
-            </div>
-            <FSelect label="Role" value={form.role} onChange={(v)=>setForm(f=>({...f,role:v}))} options={[{value:"staff",label:"Staff"},{value:"manager",label:"Manager"},{value:"child",label:"Child"},{value:"admin",label:"Admin"}]}/>
-            <FInput label="Home ID" value={form.homeId} onChange={(v)=>setForm(f=>({...f,homeId:v}))} placeholder="1"/>
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#F8F5F0",borderRadius:8,border:"1px solid #DDD3C0"}}>
-              <input type="checkbox" id="tempPw" checked={form.tempPassword} onChange={(e)=>setForm(f=>({...f,tempPassword:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
-              <label htmlFor="tempPw" style={{fontSize:13,color:"#1A1612",cursor:"pointer"}}>Temporary password — user must change on first login</label>
-            </div>
+            <FSelect label="Role" value={form.role} onChange={(v)=>setForm(f=>({...f,role:v}))} options={[{value:"staff",label:"Staff"},{value:"manager",label:"Manager"},{value:"admin",label:"Admin"}]}/>
+            <FSelect label="Home" value={form.home_id} onChange={(v)=>setForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— Select home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
           </div>
-          {form.password&&(
-            <div style={{marginTop:12,padding:"10px 14px",background:"#FFF8EE",borderRadius:8,border:"1px solid #F0D898",fontSize:13,color:"#C8860A"}}>
-              📋 Login details that will be sent: <strong>{form.email}</strong> / <strong>{form.password}</strong>
-            </div>
-          )}
           <div style={{marginTop:14,display:"flex",gap:10}}>
-            <Btn onClick={save}>Create User & Send Login Details</Btn>
-            <Btn variant="secondary" onClick={()=>setForm(f=>({...f,password:generateTemp()}))}>🎲 Generate Password</Btn>
+            <Btn onClick={save}>Send Invite</Btn>
+            <Btn variant="secondary" onClick={()=>setShowForm(false)}>Cancel</Btn>
           </div>
         </Card></div>
       )}
@@ -1798,13 +1783,13 @@ function AdminUsers({users,setUsers,homes,user}){
 
       <div className="fu1"><Card>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead><tr style={{borderBottom:"2px solid #DDD3C0"}}>{["Name","Email","Role","Temp PW","Actions"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:12,color:"#7A6E62",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{borderBottom:"2px solid #DDD3C0"}}>{["Name","Email","Role","Actions"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:12,color:"#7A6E62",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>)}</tr></thead>
           <tbody>{allUsers.map(u=>(
             <tr key={u.id} style={{borderBottom:"1px solid #EFE9DE",opacity:u.deleted?0.4:1}}>
               <td style={{padding:12,fontWeight:600}}>{u.name}</td>
               <td style={{padding:12,color:"#7A6E62",fontSize:13}}>{u.email}</td>
               <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
-              <td style={{padding:12}}>{u.mustChangePassword?<span style={{fontSize:12,color:"#C8860A",fontWeight:600}}>⏳ Pending</span>:<span style={{fontSize:12,color:"#2D7D6B",fontWeight:600}}>✓ Set</span>}</td>
+              
               <td style={{padding:12}}>
                 {/* Edit and Delete hidden until Session 5 wires real CRUD against Supabase.
                     Existing handlers (deleteUser, confirmDelete dialog) only touch React state + localStorage,
