@@ -1681,7 +1681,7 @@ function AdminHomes({homes,setHomes}){
   );
 }
 
-function AdminUsers({users,setUsers}){
+function AdminUsers({users,setUsers,homes,user}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",email:"",role:"staff",password:"",homeId:"",tempPassword:true});
   const allUsers=users;
@@ -2580,7 +2580,7 @@ export default function App(){
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
-          {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers}/>}
+          {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
         </main>
       </div>
