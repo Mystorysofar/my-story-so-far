@@ -42,7 +42,8 @@ export default async function handler(req, res) {
       .eq('id', userResult.user.id)
       .single();
     if (profileErr || !profile) {
-      return res.status(403).json({ error: 'No profile found for caller' });
+      console.error('[invite-user] profile lookup failed:', { userId: userResult.user.id, userEmail: userResult.user.email, profileErr: profileErr && profileErr.message });
+      return res.status(403).json({ error: 'No profile found for caller', detail: (profileErr && profileErr.message) || 'no profile row' });
     }
     // TODO Sitting 6: extend to allow managers to invite staff into their own home_id
     if (profile.role !== 'admin') {
