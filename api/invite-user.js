@@ -24,7 +24,8 @@ export default async function handler(req, res) {
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data: userResult, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !userResult?.user) {
-      return res.status(401).json({ error: 'Invalid session' });
+      console.error('[invite-user] getUser failed:', { msg: userErr && userErr.message, hasUser: !!(userResult && userResult.user), tokenStart: token.slice(0, 12) });
+      return res.status(401).json({ error: 'Invalid session', detail: (userErr && userErr.message) || 'no user' });
     }
 
     const { data: profile, error: profileErr } = await admin
