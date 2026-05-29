@@ -2466,6 +2466,11 @@ export default function App(){
   const [user,setUser]=useState(null);
   const [authLoading,setAuthLoading]=useState(true);
   const [needsPasswordSet,setNeedsPasswordSet]=useState(false);
+  // Tracks whether we've already restored a session this page load. Supabase fires
+  // SIGNED_IN on every tab refocus, not just on a real sign-in. Without this ref
+  // we'd call handleLogin every time the tab regains focus, resetting page state.
+  const hasHydratedRef=useRef(false);
+  const currentUserIdRef=useRef(null);
   const [showLogin,setShowLogin]=useState(false);
   const [page,setPage]=useState("dashboard");
   const [children,setChildren]=useState(()=>{
@@ -2603,14 +2608,13 @@ export default function App(){
         homeId:profile.home_id,
         subscription:profile.subscription||'active',
       });
+      hasHydratedRef.current=true;
+      currentUserIdRef.current=session.user.id;
       setAuthLoading(false);
     };
     supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
     const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
-      // Only hydrate on a genuine sign-in. TOKEN_REFRESHED fires on tab refocus and
-      // every ~1hr token refresh — re-hydrating then would call handleLogin and
-      // reset the page state, stomping on whatever the user is doing.
-      if(event==='SIGNED_IN') hydrateFromSession(session);
+      if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
       if(event==='PASSWORD_RECOVERY'){
         // User clicked a reset-password email link. Force SetPasswordScreen via isRecovery flag.
         hydrateFromSession(session, true);
@@ -2637,9 +2641,10 @@ export default function App(){
 
   const handleLogin=(u)=>{
     setShowLogin(false);
-    // If we're re-hydrating the same user (e.g. after tab refocus or token refresh),
-    // don't reset the page or stomp on whatever the user is currently doing.
-    const isRehydrate = user && user.id === u.id;
+    // Detect re-hydration via refs (not closure-captured user state, which would
+    // be stale inside useEffect). Supabase fires SIGNED_IN on every tab refocus,
+    // so this guard is what stops the page from resetting on tab switch.
+    const isRehydrate = hasHydratedRef.current && currentUserIdRef.current === u.id;
     setUser(u);
     if(isRehydrate) return;
     if(u.role==="child") setPage("my-story");
