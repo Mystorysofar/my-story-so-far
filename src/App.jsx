@@ -343,8 +343,8 @@ async function generateBulkChapters(reports, child){
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const NAV_BY_ROLE = {
-  staff:  ["dashboard","children","new-chapter","chapters","approvals"],
-  manager:["dashboard","children","new-chapter","chapters","approvals"],
+  staff:  ["dashboard","children","new-chapter","chapters","approvals","admin-users"],
+  manager:["dashboard","children","new-chapter","chapters","approvals","admin-users"],
   admin:  ["admin-dashboard","admin-homes","admin-users","admin-settings","children","new-chapter","chapters","approvals"],
   child:  ["my-story","my-progress"],
 };
@@ -1682,9 +1682,43 @@ function AdminHomes({homes,setHomes}){
 }
 
 function AdminUsers({users,setUsers,homes,user}){
+  // Derive caller's role/home for permission gating
+  const callerRole = user?.role || "staff";
+  const callerHome = user?.homeId || null;
+
+  // Role matrix for invite/edit/delete — mirrors what the server enforces in
+  // api/invite-user.js, api/update-user.js, api/delete-user.js.
+  // We restrict the UI to match so users don't see actions the server will refuse.
+  const allowedNewRoles =
+    callerRole === "admin"   ? ["admin","manager","staff","child"]
+  : callerRole === "manager" ? ["staff","child"]
+  : callerRole === "staff"   ? ["child"]
+  : [];
+  const defaultNewRole = allowedNewRoles[allowedNewRoles.length-1] || "child";
+
+  // Visible users: admin sees everyone; manager+staff see own home only.
+  const visibleUsers = callerRole === "admin"
+    ? users
+    : users.filter(u => u.homeId === callerHome);
+
+  // For each row, can the caller edit / delete that user?
+  const canEdit = (u) => {
+    if (!user || u.id === user.id) return false; // never edit self via this UI
+    if (callerRole === "admin") return true;
+    if (callerRole === "manager") return (u.role === "staff" || u.role === "child") && u.homeId === callerHome;
+    if (callerRole === "staff")   return  u.role === "child" && u.homeId === callerHome;
+    return false;
+  };
+  const canDelete = (u) => {
+    if (!user || u.id === user.id) return false; // never delete self
+    if (callerRole === "admin") return true;
+    if (callerRole === "manager") return (u.role === "staff" || u.role === "child") && u.homeId === callerHome;
+    return false; // staff cannot delete
+  };
+
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({name:"",email:"",role:"staff",home_id:""});
-  const allUsers=users;
+  const [form,setForm]=useState({name:"",email:"",role:defaultNewRole,home_id: callerRole==="admin" ? "" : (callerHome||"")});
+  const allUsers=visibleUsers;
   const setAllUsers=setUsers;
   const [notifySent,setNotifySent]=useState(null);
   const [confirmDelete,setConfirmDelete]=useState(null);
@@ -1701,15 +1735,31 @@ function AdminUsers({users,setUsers,homes,user}){
     if(!editingForm.name){alert("Please enter a name.");return;}
     if(!editingForm.role){alert("Please select a role.");return;}
     try{
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: editingForm.name,
-          role: editingForm.role,
-          home_id: editingForm.home_id || null,
-        })
-        .eq('id', editingUser.id);
-      if(error){alert(`Could not save: ${error.message}`);return;}
+      const { data:{session} } = await supabase.auth.getSession();
+      if(!session){alert("Your session has expired. Please sign in again.");return;}
+      // Build the payload — only admin can change home_id; for others, omit it
+      // so the server doesn't reject the request.
+      const payload = {
+        user_id: editingUser.id,
+        name: editingForm.name,
+        role: editingForm.role,
+      };
+      if(callerRole === "admin"){
+        payload.home_id = editingForm.home_id || null;
+      }
+      const res = await fetch("/api/update-user",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "Authorization":`Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){
+        alert(`Could not save: ${data.error || res.statusText}`);
+        return;
+      }
       // Reload users
       const { data:rows } = await supabase.from('profiles').select('*').order('name');
       if(rows) setAllUsers(rows.map(p=>({
@@ -1811,7 +1861,10 @@ function AdminUsers({users,setUsers,homes,user}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <FInput label="Full Name" value={form.name} onChange={(v)=>setForm(f=>({...f,name:v}))} required/>
             <FInput label="Email Address" value={form.email} onChange={(v)=>setForm(f=>({...f,email:v}))} type="email" required/>
-            <FSelect label="Role" value={form.role} onChange={(v)=>setForm(f=>({...f,role:v}))} options={[{value:"staff",label:"Staff"},{value:"manager",label:"Manager"},{value:"admin",label:"Admin"}]}/>
+            <FSelect label="Role" value={form.role} onChange={(v)=>setForm(f=>({...f,role:v}))} options={allowedNewRoles.map(r => ({
+                value: r,
+                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : "Child"
+              }))}/>
             <FSelect label="Home" value={form.home_id} onChange={(v)=>setForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— Select home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
           </div>
           <div style={{marginTop:14,display:"flex",gap:10}}>
@@ -1844,7 +1897,10 @@ function AdminUsers({users,setUsers,homes,user}){
             <p style={{fontSize:13,color:"#7A6E62",marginBottom:18}}>Update {editingUser.email}. Email can't be changed here.</p>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
               <FInput label="Full Name" value={editingForm.name} onChange={(v)=>setEditingForm(f=>({...f,name:v}))} required/>
-              <FSelect label="Role" value={editingForm.role} onChange={(v)=>setEditingForm(f=>({...f,role:v}))} options={[{value:"staff",label:"Staff"},{value:"manager",label:"Manager"},{value:"admin",label:"Admin"}]}/>
+              <FSelect label="Role" value={editingForm.role} onChange={(v)=>setEditingForm(f=>({...f,role:v}))} options={allowedNewRoles.map(r => ({
+                value: r,
+                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : "Child"
+              }))}/>
               <FSelect label="Home" value={editingForm.home_id} onChange={(v)=>setEditingForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— No home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
             </div>
             <div style={{marginTop:18,display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -1865,9 +1921,14 @@ function AdminUsers({users,setUsers,homes,user}){
               <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
               
               <td style={{padding:12,display:"flex",gap:8}}>
-                <Btn size="sm" variant="ghost" onClick={()=>startEdit(u)}>Edit</Btn>
-                {user && u.id !== user.id && (
+                {canEdit(u) && (
+                  <Btn size="sm" variant="ghost" onClick={()=>startEdit(u)}>Edit</Btn>
+                )}
+                {canDelete(u) && (
                   <Btn size="sm" variant="danger" onClick={()=>setConfirmDelete(u)}>Delete</Btn>
+                )}
+                {!canEdit(u) && !canDelete(u) && (
+                  <span style={{fontSize:12,color:"#7A6E62",fontStyle:"italic"}}>—</span>
                 )}
               </td>
             </tr>
