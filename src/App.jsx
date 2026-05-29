@@ -2607,7 +2607,10 @@ export default function App(){
     };
     supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
     const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
-      if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
+      // Only hydrate on a genuine sign-in. TOKEN_REFRESHED fires on tab refocus and
+      // every ~1hr token refresh — re-hydrating then would call handleLogin and
+      // reset the page state, stomping on whatever the user is doing.
+      if(event==='SIGNED_IN') hydrateFromSession(session);
       if(event==='PASSWORD_RECOVERY'){
         // User clicked a reset-password email link. Force SetPasswordScreen via isRecovery flag.
         hydrateFromSession(session, true);
@@ -2633,7 +2636,12 @@ export default function App(){
   },[]);
 
   const handleLogin=(u)=>{
-    setUser(u);setShowLogin(false);
+    setShowLogin(false);
+    // If we're re-hydrating the same user (e.g. after tab refocus or token refresh),
+    // don't reset the page or stomp on whatever the user is currently doing.
+    const isRehydrate = user && user.id === u.id;
+    setUser(u);
+    if(isRehydrate) return;
     if(u.role==="child") setPage("my-story");
     else if(u.role==="admin") setPage("admin-dashboard");
     else setPage("dashboard");
