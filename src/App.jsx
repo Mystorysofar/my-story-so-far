@@ -1762,13 +1762,34 @@ function AdminUsers({users,setUsers,homes,user}){
     }
   };
 
-  const deleteUser=(id)=>{
-    setAllUsers(p=>{
-      const updated=p.filter(u=>u.id!==id);
-      try{localStorage.setItem("mssf_users",JSON.stringify(updated));}catch(e){}
-      return updated;
-    });
-    setConfirmDelete(null);
+  const deleteUser=async(id)=>{
+    try{
+      const { data:{session} } = await supabase.auth.getSession();
+      if(!session){alert("Your session has expired. Please sign in again.");return;}
+      const res = await fetch("/api/delete-user",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "Authorization":`Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ user_id: id }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){
+        alert(`Could not delete user: ${data.error || res.statusText}`);
+        return;
+      }
+      setConfirmDelete(null);
+      // Reload users so the row disappears
+      const { data:rows } = await supabase.from('profiles').select('*').order('name');
+      if(rows) setAllUsers(rows.map(p=>({
+        id:p.id, name:p.name||"", email:p.email||"",
+        role:p.role||"staff", homeId:p.home_id, childId:p.child_id,
+        subscription:p.subscription||"active",
+      })));
+    }catch(e){
+      alert(`Network error: ${e.message}`);
+    }
   };
 
   return(
@@ -1806,7 +1827,7 @@ function AdminUsers({users,setUsers,homes,user}){
           <Card style={{maxWidth:400,width:"100%",textAlign:"center",padding:32}}>
             <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
             <h3 style={{fontSize:18,marginBottom:8}}>Delete {confirmDelete.name}?</h3>
-            <p style={{fontSize:13,color:"#7A6E62",marginBottom:24}}>This will permanently remove their account. They will no longer be able to log in. This cannot be undone.</p>
+            <p style={{fontSize:13,color:"#7A6E62",marginBottom:24}}>This permanently deletes their account and removes their profile. They will no longer be able to log in. To restore access, you would need to invite them again. This cannot be undone.</p>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
               <Btn variant="danger" onClick={()=>deleteUser(confirmDelete.id)}>Yes, Delete User</Btn>
               <Btn variant="secondary" onClick={()=>setConfirmDelete(null)}>Cancel</Btn>
@@ -1843,8 +1864,11 @@ function AdminUsers({users,setUsers,homes,user}){
               <td style={{padding:12,color:"#7A6E62",fontSize:13}}>{u.email}</td>
               <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
               
-              <td style={{padding:12}}>
+              <td style={{padding:12,display:"flex",gap:8}}>
                 <Btn size="sm" variant="ghost" onClick={()=>startEdit(u)}>Edit</Btn>
+                {user && u.id !== user.id && (
+                  <Btn size="sm" variant="danger" onClick={()=>setConfirmDelete(u)}>Delete</Btn>
+                )}
               </td>
             </tr>
           ))}</tbody>
