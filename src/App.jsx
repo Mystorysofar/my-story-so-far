@@ -1688,6 +1688,40 @@ function AdminUsers({users,setUsers,homes,user}){
   const setAllUsers=setUsers;
   const [notifySent,setNotifySent]=useState(null);
   const [confirmDelete,setConfirmDelete]=useState(null);
+  const [editingUser,setEditingUser]=useState(null);
+  const [editingForm,setEditingForm]=useState({name:"",role:"staff",home_id:""});
+
+  const startEdit=(u)=>{
+    setEditingForm({name:u.name||"",role:u.role||"staff",home_id:u.homeId||""});
+    setEditingUser(u);
+  };
+
+  const saveEdit=async()=>{
+    if(!editingUser){return;}
+    if(!editingForm.name){alert("Please enter a name.");return;}
+    if(!editingForm.role){alert("Please select a role.");return;}
+    try{
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: editingForm.name,
+          role: editingForm.role,
+          home_id: editingForm.home_id || null,
+        })
+        .eq('id', editingUser.id);
+      if(error){alert(`Could not save: ${error.message}`);return;}
+      // Reload users
+      const { data:rows } = await supabase.from('profiles').select('*').order('name');
+      if(rows) setAllUsers(rows.map(p=>({
+        id:p.id, name:p.name||"", email:p.email||"",
+        role:p.role||"staff", homeId:p.home_id, childId:p.child_id,
+        subscription:p.subscription||"active",
+      })));
+      setEditingUser(null);
+    }catch(e){
+      alert(`Network error: ${e.message}`);
+    }
+  };
 
   const save=async()=>{
     if(!form.name||!form.email){alert("Please fill in name and email.");return;}
@@ -1781,6 +1815,25 @@ function AdminUsers({users,setUsers,homes,user}){
         </div>
       )}
 
+      {/* Edit user modal */}
+      {editingUser&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+          <Card style={{maxWidth:520,width:"100%",padding:28}}>
+            <h3 style={{fontSize:17,marginBottom:4}}>Edit User</h3>
+            <p style={{fontSize:13,color:"#7A6E62",marginBottom:18}}>Update {editingUser.email}. Email can't be changed here.</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <FInput label="Full Name" value={editingForm.name} onChange={(v)=>setEditingForm(f=>({...f,name:v}))} required/>
+              <FSelect label="Role" value={editingForm.role} onChange={(v)=>setEditingForm(f=>({...f,role:v}))} options={[{value:"staff",label:"Staff"},{value:"manager",label:"Manager"},{value:"admin",label:"Admin"}]}/>
+              <FSelect label="Home" value={editingForm.home_id} onChange={(v)=>setEditingForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— No home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
+            </div>
+            <div style={{marginTop:18,display:"flex",gap:10,justifyContent:"flex-end"}}>
+              <Btn variant="secondary" onClick={()=>setEditingUser(null)}>Cancel</Btn>
+              <Btn onClick={saveEdit}>Save Changes</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <div className="fu1"><Card>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead><tr style={{borderBottom:"2px solid #DDD3C0"}}>{["Name","Email","Role","Actions"].map(h=><th key={h} style={{textAlign:"left",padding:"10px 12px",fontSize:12,color:"#7A6E62",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>)}</tr></thead>
@@ -1791,10 +1844,7 @@ function AdminUsers({users,setUsers,homes,user}){
               <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
               
               <td style={{padding:12}}>
-                {/* Edit and Delete hidden until Session 5 wires real CRUD against Supabase.
-                    Existing handlers (deleteUser, confirmDelete dialog) only touch React state + localStorage,
-                    not Supabase auth or profiles. Dialog was misleadingly worded. */}
-                <span style={{fontSize:12,color:"#7A6E62",fontStyle:"italic"}}>—</span>
+                <Btn size="sm" variant="ghost" onClick={()=>startEdit(u)}>Edit</Btn>
               </td>
             </tr>
           ))}</tbody>
