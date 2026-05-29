@@ -2266,6 +2266,7 @@ function SignInModal({onLogin,onClose}){
   const [mode,setMode]=useState("signin"); // signin | request
   const [reqForm,setReqForm]=useState({name:"",org:"",role:"",email:"",phone:"",children:""});
   const [submitted,setSubmitted]=useState(false);
+  const [forgotSent,setForgotSent]=useState(false);
 
   const [selectedRole,setSelectedRole]=useState("");
   const [loginFailed,setLoginFailed]=useState(false);
@@ -2378,6 +2379,7 @@ function SignInModal({onLogin,onClose}){
                 <Btn onClick={handle} style={{width:"100%",justifyContent:"center",padding:"11px"}}>Sign In →</Btn>
               </div>
 
+              <p style={{textAlign:"center",fontSize:12,color:"#7A6E62",marginTop:10}}><span onClick={()=>{setMode("forgot");setErr("");}} style={{color:"#1A6B6B",cursor:"pointer",fontWeight:600}}>Forgot password?</span></p>
               <p style={{textAlign:"center",fontSize:12,color:"#7A6E62",marginTop:14}}>New here? <span onClick={()=>setMode("request")} style={{color:"#1A6B6B",cursor:"pointer",fontWeight:700}}>Request access →</span></p>
             </>
           )}
@@ -2418,6 +2420,39 @@ function SignInModal({onLogin,onClose}){
                 }} style={{width:"100%",justifyContent:"center",padding:"11px"}}>Submit Request →</Btn>
               </div>
               <p style={{textAlign:"center",fontSize:12,color:"#7A6E62",marginTop:14}}>Already have an account? <span onClick={()=>setMode("signin")} style={{color:"#1A6B6B",cursor:"pointer",fontWeight:700}}>Sign in →</span></p>
+            </>
+          )}
+
+          {mode==="forgot"&&(
+            <>
+              <div style={{marginBottom:18}}>
+                <h2 style={{fontSize:20,color:"#1A1612",marginBottom:4}}>Reset your password</h2>
+                <p style={{fontSize:13,color:"#7A6E62",lineHeight:1.6}}>Enter your email and we'll send you a link to set a new password.</p>
+              </div>
+              {forgotSent?(
+                <div style={{padding:"14px 16px",background:"#EFF8F7",borderRadius:8,border:"1px solid #C0E0DC",fontSize:13,color:"#1A6B6B",lineHeight:1.6,marginBottom:14}}>
+                  ✅ If an account exists for <strong>{email}</strong>, a reset link is on its way. Check your inbox (and spam folder).
+                </div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <FInput label="Email" value={email} onChange={setEmail} type="email" placeholder="your@email.org"/>
+                  {err&&<p style={{color:"#B5464A",fontSize:13,background:"#FFF0EF",padding:"8px 12px",borderRadius:8}}>{err}</p>}
+                  <Btn onClick={async()=>{
+                    if(!email){setErr("Please enter your email.");return;}
+                    setErr("");
+                    try{
+                      await supabase.auth.resetPasswordForEmail(email,{
+                        redirectTo: window.location.origin,
+                      });
+                      setForgotSent(true);
+                    }catch(e){
+                      // Show success either way so we don't leak which emails exist
+                      setForgotSent(true);
+                    }
+                  }} style={{width:"100%",justifyContent:"center",padding:"11px"}}>Send reset link →</Btn>
+                </div>
+              )}
+              <p style={{textAlign:"center",fontSize:12,color:"#7A6E62",marginTop:14}}><span onClick={()=>{setMode("signin");setForgotSent(false);setErr("");}} style={{color:"#1A6B6B",cursor:"pointer",fontWeight:700}}>← Back to sign in</span></p>
             </>
           )}
         </Card>
@@ -2573,6 +2608,11 @@ export default function App(){
     supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
     const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
       if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
+      if(event==='PASSWORD_RECOVERY'){
+        // User clicked a reset-password email link. Hydrate session and force SetPasswordScreen.
+        hydrateFromSession(session);
+        setNeedsPasswordSet(true);
+      }
       if(event==='SIGNED_OUT'){ setUser(null); setNeedsPasswordSet(false); setPage('dashboard'); }
     });
     return ()=>{ cancelled=true; listener?.subscription?.unsubscribe(); };
