@@ -2607,6 +2607,7 @@ export default function App(){
     };
     supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
     const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
+      console.log('[auth-event]', event, { hasSession: !!session, url: window.location.href });
       if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
       if(event==='PASSWORD_RECOVERY'){
         // User clicked a reset-password email link. Hydrate session and force SetPasswordScreen.
