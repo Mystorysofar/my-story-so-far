@@ -2572,7 +2572,7 @@ export default function App(){
   // so the rest of the app treats this exactly like a fresh sign-in.
   useEffect(()=>{
     let cancelled=false;
-    const hydrateFromSession=async(session)=>{
+    const hydrateFromSession=async(session,isRecovery=false)=>{
       if(cancelled) return;
       if(!session||!session.user){ setAuthLoading(false); return; }
       const {data:profile,error:profileError}=await supabase
@@ -2594,7 +2594,7 @@ export default function App(){
       const created=session.user.created_at?new Date(session.user.created_at).getTime():0;
       const lastSignIn=session.user.last_sign_in_at?new Date(session.user.last_sign_in_at).getTime():0;
       const firstEverSession=created>0&&lastSignIn>0&&(lastSignIn-created)<60000;
-      setNeedsPasswordSet(meta.needs_password_set===true||firstEverSession);
+      setNeedsPasswordSet(isRecovery||meta.needs_password_set===true||firstEverSession);
       handleLogin({
         id:session.user.id,
         name:profile.name||session.user.email,
@@ -2607,12 +2607,10 @@ export default function App(){
     };
     supabase.auth.getSession().then(({data})=>hydrateFromSession(data?.session));
     const {data:listener}=supabase.auth.onAuthStateChange((event,session)=>{
-      console.log('[auth-event]', event, { hasSession: !!session, url: window.location.href });
       if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED') hydrateFromSession(session);
       if(event==='PASSWORD_RECOVERY'){
-        // User clicked a reset-password email link. Hydrate session and force SetPasswordScreen.
-        hydrateFromSession(session);
-        setNeedsPasswordSet(true);
+        // User clicked a reset-password email link. Force SetPasswordScreen via isRecovery flag.
+        hydrateFromSession(session, true);
       }
       if(event==='SIGNED_OUT'){ setUser(null); setNeedsPasswordSet(false); setPage('dashboard'); }
     });
