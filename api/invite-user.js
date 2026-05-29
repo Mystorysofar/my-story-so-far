@@ -32,8 +32,7 @@ export default async function handler(req, res) {
     // Admin client is built only after token validation succeeds
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     if (userErr || !userResult?.user) {
-      console.error('[invite-user] getUser failed:', { msg: userErr && userErr.message, hasUser: !!(userResult && userResult.user), tokenStart: token.slice(0, 12) });
-      return res.status(401).json({ error: 'Invalid session', detail: (userErr && userErr.message) || 'no user' });
+      return res.status(401).json({ error: 'Invalid session' });
     }
 
     const { data: profile, error: profileErr } = await admin
@@ -42,8 +41,7 @@ export default async function handler(req, res) {
       .eq('id', userResult.user.id)
       .single();
     if (profileErr || !profile) {
-      console.error('[invite-user] profile lookup failed:', { userId: userResult.user.id, userEmail: userResult.user.email, profileErr: profileErr && profileErr.message });
-      return res.status(403).json({ error: 'No profile found for caller', detail: (profileErr && profileErr.message) || 'no profile row' });
+      return res.status(403).json({ error: 'No profile found for caller' });
     }
     // TODO Sitting 6: extend to allow managers to invite staff into their own home_id
     if (profile.role !== 'admin') {
