@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Role rank — used to prevent promotion above caller's own rank
+const RANK = { child: 0, staff: 1, manager: 2, admin: 3 };
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -15,24 +18,20 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Server is missing Supabase configuration' });
     }
 
-    // Extract caller's session token
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!token) {
       return res.status(401).json({ error: 'Not signed in' });
     }
 
-    // Validate the caller's token using the publishable-keyed client
     const browserClient = createClient(supabaseUrl, publishableKey, { auth: { persistSession: false } });
     const { data: userResult, error: userErr } = await browserClient.auth.getUser(token);
     if (userErr || !userResult?.user) {
       return res.status(401).json({ error: 'Invalid session' });
     }
 
-    // Admin client for privileged ops
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-    // Verify caller is admin
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
       .select('role, home_id')
@@ -42,18 +41,14 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'No profile found for caller' });
     }
 
-    // Validate body
-    const { user_id } = req.body || {};
+    const { user_id, name, role, home_id } = req.body || {};
     if (!user_id) {
       return res.status(400).json({ error: 'Missing required field: user_id' });
     }
-
-    // Block self-deletion — no one can delete their own account
-    if (user_id === userResult.user.id) {
-      return res.status(400).json({ error: 'You cannot delete your own account' });
+    if (name === undefined && role === undefined && home_id === undefined) {
+      return res.status(400).json({ error: 'No update fields provided' });
     }
 
-    // Look up the target user's profile to know what role/home we're acting on
     const { data: target, error: targetErr } = await admin
       .from('profiles')
       .select('role, home_id')
@@ -63,30 +58,64 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Target user not found' });
     }
 
-    // Role matrix:
-    //   admin   → can delete anyone (except self, already blocked above)
-    //   manager → can delete staff or child in own home only
-    //   staff   → cannot delete anyone
-    //   child   → cannot delete anyone
     const callerRole = profile.role;
     const callerHome = profile.home_id;
+
+    // Role matrix for editing:
+    //   admin   -> can edit anyone
+    //   manager -> can edit staff or child in own home
+    //   staff   -> can edit child in own home
+    //   child   -> cannot edit anyone
     if (callerRole === 'admin') {
-      // no restriction beyond self-delete already blocked
+      // no restriction
     } else if (callerRole === 'manager') {
       if (target.role !== 'staff' && target.role !== 'child') {
-        return res.status(403).json({ error: 'Managers can only delete staff or children' });
+        return res.status(403).json({ error: 'Managers can only edit staff or children' });
       }
       if (!callerHome || target.home_id !== callerHome) {
-        return res.status(403).json({ error: 'Managers can only delete users in their own home' });
+        return res.status(403).json({ error: 'Managers can only edit users in their own home' });
+      }
+    } else if (callerRole === 'staff') {
+      if (target.role !== 'child') {
+        return res.status(403).json({ error: 'Staff can only edit children' });
+      }
+      if (!callerHome || target.home_id !== callerHome) {
+        return res.status(403).json({ error: 'Staff can only edit children in their own home' });
       }
     } else {
-      return res.status(403).json({ error: 'Your role cannot delete users' });
+      return res.status(403).json({ error: 'Your role cannot edit users' });
     }
 
-    // Perform the delete (cascade from auth.users to profiles is configured at DB level)
-    const { error: delErr } = await admin.auth.admin.deleteUser(user_id);
-    if (delErr) {
-      return res.status(400).json({ error: delErr.message });
+    const patch = {};
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'Name must be a non-empty string' });
+      }
+      patch.name = name.trim();
+    }
+    if (role !== undefined) {
+      const allowedRoles = ['admin', 'manager', 'staff', 'child'];
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      if (RANK[role] > RANK[callerRole]) {
+        return res.status(403).json({ error: 'You cannot promote a user above your own role' });
+      }
+      patch.role = role;
+    }
+    if (home_id !== undefined) {
+      if (callerRole !== 'admin') {
+        return res.status(403).json({ error: 'Only admin can change a user home' });
+      }
+      patch.home_id = home_id || null;
+    }
+
+    const { error: updErr } = await admin
+      .from('profiles')
+      .update(patch)
+      .eq('id', user_id);
+    if (updErr) {
+      return res.status(400).json({ error: updErr.message });
     }
 
     return res.status(200).json({ ok: true });

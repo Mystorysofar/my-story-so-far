@@ -37,15 +37,11 @@ export default async function handler(req, res) {
 
     const { data: profile, error: profileErr } = await admin
       .from('profiles')
-      .select('role')
+      .select('role, home_id')
       .eq('id', userResult.user.id)
       .single();
     if (profileErr || !profile) {
       return res.status(403).json({ error: 'No profile found for caller' });
-    }
-    // TODO Sitting 6: extend to allow managers to invite staff into their own home_id
-    if (profile.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can invite users' });
     }
 
     // Validate the request body
@@ -53,9 +49,36 @@ export default async function handler(req, res) {
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Missing required fields: name, email, role' });
     }
-    const allowedRoles = ['admin', 'manager', 'staff'];
+
+    // Role matrix:
+    //   admin   → can invite anyone to any home
+    //   manager → can invite staff or child, must be same home_id
+    //   staff   → can invite child only, must be same home_id
+    //   child   → cannot invite anyone
+    const callerRole = profile.role;
+    const callerHome = profile.home_id;
+    if (callerRole === 'admin') {
+      // no restriction
+    } else if (callerRole === 'manager') {
+      if (role !== 'staff' && role !== 'child') {
+        return res.status(403).json({ error: 'Managers can only invite staff or children' });
+      }
+      if (!callerHome || home_id !== callerHome) {
+        return res.status(403).json({ error: 'Managers can only invite users into their own home' });
+      }
+    } else if (callerRole === 'staff') {
+      if (role !== 'child') {
+        return res.status(403).json({ error: 'Staff can only invite children' });
+      }
+      if (!callerHome || home_id !== callerHome) {
+        return res.status(403).json({ error: 'Staff can only invite children into their own home' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Your role cannot invite users' });
+    }
+    const allowedRoles = ['admin', 'manager', 'staff', 'child'];
     if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: 'Invalid role. Must be admin, manager or staff.' });
+      return res.status(400).json({ error: 'Invalid role. Must be admin, manager, staff or child.' });
     }
 
     // Send the invite
