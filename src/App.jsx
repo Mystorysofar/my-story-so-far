@@ -1737,13 +1737,18 @@ function AdminUsers({users,setUsers,homes,user}){
     try{
       const { data:{session} } = await supabase.auth.getSession();
       if(!session){alert("Your session has expired. Please sign in again.");return;}
-      // Build the payload — only admin can change home_id; for others, omit it
-      // so the server doesn't reject the request.
+      // Build the payload. Only include fields that should change:
+      //  - role only when it actually differs (the server lets only admins
+      //    change a role, so sending an unchanged role would wrongly reject
+      //    a manager/staff doing an ordinary name edit).
+      //  - home_id only for admins (only admin can change a user's home).
       const payload = {
         user_id: editingUser.id,
         name: editingForm.name,
-        role: editingForm.role,
       };
+      if(editingForm.role !== editingUser.role){
+        payload.role = editingForm.role;
+      }
       if(callerRole === "admin"){
         payload.home_id = editingForm.home_id || null;
       }
