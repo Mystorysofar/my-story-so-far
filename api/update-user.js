@@ -98,8 +98,11 @@ export default async function handler(req, res) {
       if (!allowedRoles.includes(role)) {
         return res.status(400).json({ error: 'Invalid role' });
       }
-      if (RANK[role] > RANK[callerRole]) {
-        return res.status(403).json({ error: 'You cannot promote a user above your own role' });
+      // Only admin may change a user's role at all. This prevents a manager
+      // from minting another manager (or promoting a child/staff to manager),
+      // matching the permissions matrix and the same rule used for home_id.
+      if (callerRole !== 'admin') {
+        return res.status(403).json({ error: 'Only admin can change a user role' });
       }
       patch.role = role;
     }
