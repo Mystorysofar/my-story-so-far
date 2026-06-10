@@ -1409,6 +1409,109 @@ function ApprovalsPage({user,children,chapters,setChapters}){
 }
 
 // ── Child Portal ──────────────────────────────────────────────────────────────
+// ── Admin: assign children to a social worker ──────────────────────────────────
+// Opens for one social worker. Reads their existing child_social_workers rows,
+// shows all ACTIVE (non-archived) children as checkboxes, writes (insert/delete)
+// on toggle. Admin is permitted by the csw_admin_all RLS policy. Read-only access
+// only — creating a link row never exposes anything the SW view doesn't already gate.
+function ChildAssignmentPanel({socialWorker,children,homes,adminId,onClose}){
+  const [assignedIds,setAssignedIds]=useState(null);
+  const [busyId,setBusyId]=useState(null);
+  const [err,setErr]=useState("");
+
+  const assignable=(children||[]).filter(c=>!c.archived);
+  const homeName=(homeId)=>(homes||[]).find(h=>h.id===homeId)?.name||"";
+
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      const {data,error}=await supabase
+        .from('child_social_workers')
+        .select('child_id')
+        .eq('social_worker_id',socialWorker.id);
+      if(cancelled) return;
+      if(error){ setErr("Couldn't load current assignments: "+error.message); setAssignedIds([]); return; }
+      setAssignedIds((data||[]).map(r=>r.child_id));
+    })();
+    return ()=>{cancelled=true;};
+  },[socialWorker.id]);
+
+  const isAssigned=(childId)=>Array.isArray(assignedIds)&&assignedIds.includes(childId);
+  const assignedCount=Array.isArray(assignedIds)?assignedIds.filter(id=>assignable.some(c=>c.id===id)).length:0;
+
+  const toggle=async(child)=>{
+    if(busyId) return;
+    setErr("");
+    setBusyId(child.id);
+    if(isAssigned(child.id)){
+      const {error}=await supabase
+        .from('child_social_workers')
+        .delete()
+        .eq('social_worker_id',socialWorker.id)
+        .eq('child_id',child.id);
+      if(error){ setErr("Couldn't unassign: "+error.message); }
+      else { setAssignedIds(ids=>ids.filter(id=>id!==child.id)); }
+    } else {
+      const {error}=await supabase
+        .from('child_social_workers')
+        .insert({child_id:child.id,social_worker_id:socialWorker.id,assigned_by:adminId});
+      if(error){ setErr("Couldn't assign: "+error.message); }
+      else { setAssignedIds(ids=>[...ids,child.id]); }
+    }
+    setBusyId(null);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+      <Card style={{maxWidth:520,width:"100%",padding:28,maxHeight:"80vh",overflowY:"auto"}}>
+        <h3 style={{fontSize:17,marginBottom:4}}>Assign children to {socialWorker.name}</h3>
+        <p style={{fontSize:13,color:"#7A6E62",marginBottom:18}}>
+          Tick a child to give this social worker read-only access to that child's published story. Untick to remove access. Changes save immediately.
+        </p>
+
+        {err&&<p style={{color:"#B5464A",fontSize:13,background:"#FFF0EF",padding:"8px 12px",borderRadius:8,marginBottom:14}}>{err}</p>}
+
+        {assignedIds===null && (
+          <p style={{fontSize:14,color:"#7A6E62",padding:"16px 0"}}>Loading current assignments…</p>
+        )}
+
+        {assignedIds!==null && assignable.length===0 && (
+          <p style={{fontSize:14,color:"#7A6E62",padding:"16px 0"}}>There are no active children to assign.</p>
+        )}
+
+        {assignedIds!==null && assignable.length>0 && (
+          <>
+            <div style={{fontSize:12,color:"#7A6E62",marginBottom:10}}>{assignedCount} of {assignable.length} assigned</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {assignable.map(child=>{
+                const on=isAssigned(child.id);
+                const saving=busyId===child.id;
+                const hn=homeName(child.homeId);
+                return(
+                  <label key={child.id}
+                    style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,border:"1px solid "+(on?"#1A6B6B":"#EFE9DE"),background:on?"#EFF8F7":"#fff",cursor:saving?"wait":"pointer",opacity:saving?0.6:1}}>
+                    <input type="checkbox" checked={on} disabled={saving} onChange={()=>toggle(child)}
+                      style={{width:18,height:18,accentColor:"#1A6B6B",cursor:saving?"wait":"pointer"}}/>
+                    <span style={{display:"flex",flexDirection:"column"}}>
+                      <span style={{fontSize:15,fontWeight:600,color:"#1A1612"}}>{child.preferredName}</span>
+                      {hn&&<span style={{fontSize:12,color:"#7A6E62"}}>{hn}</span>}
+                    </span>
+                    {saving&&<span style={{fontSize:12,color:"#7A6E62",marginLeft:"auto"}}>saving…</span>}
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div style={{marginTop:22,display:"flex",justifyContent:"flex-end"}}>
+          <Btn onClick={onClose}>Done</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Social Worker read-only view ───────────────────────────────────────────────
 // A social worker sees ONLY their assigned children and ONLY published chapters.
 // Security is enforced server-side by RLS (chapters_social_worker_select +
@@ -1824,7 +1927,7 @@ function AdminHomes({homes,setHomes}){
   );
 }
 
-function AdminUsers({users,setUsers,homes,user}){
+function AdminUsers({users,setUsers,homes,user,children}){
   // Derive caller's role/home for permission gating
   const callerRole = user?.role || "staff";
   const callerHome = user?.homeId || null;
@@ -1866,6 +1969,7 @@ function AdminUsers({users,setUsers,homes,user}){
   const [notifySent,setNotifySent]=useState(null);
   const [confirmDelete,setConfirmDelete]=useState(null);
   const [editingUser,setEditingUser]=useState(null);
+  const [assigningTo,setAssigningTo]=useState(null); // social_worker whose child-assignment panel is open
   const [editingForm,setEditingForm]=useState({name:"",role:"staff",home_id:""});
 
   const startEdit=(u)=>{
@@ -2037,6 +2141,17 @@ function AdminUsers({users,setUsers,homes,user}){
         </div>
       )}
 
+      {/* Assign-children-to-social-worker panel */}
+      {assigningTo && (
+        <ChildAssignmentPanel
+          socialWorker={assigningTo}
+          children={children}
+          homes={homes}
+          adminId={user?.id}
+          onClose={()=>setAssigningTo(null)}
+        />
+      )}
+
       {/* Edit user modal */}
       {editingUser&&(
         <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
@@ -2066,7 +2181,7 @@ function AdminUsers({users,setUsers,homes,user}){
             <tr key={u.id} style={{borderBottom:"1px solid #EFE9DE",opacity:u.deleted?0.4:1}}>
               <td style={{padding:12,fontWeight:600}}>{u.name}</td>
               <td style={{padding:12,color:"#7A6E62",fontSize:13}}>{u.email}</td>
-              <td style={{padding:12}}><Badge label={u.role} color={u.role}/></td>
+              <td style={{padding:12}}><Badge label={u.role==="admin"?"Admin":u.role==="manager"?"Manager":u.role==="staff"?"Staff":u.role==="social_worker"?"Social Worker":u.role==="child"?"Child":u.role} color={u.role}/></td>
               
               <td style={{padding:12,display:"flex",gap:8}}>
                 {canEdit(u) && (
@@ -2074,6 +2189,9 @@ function AdminUsers({users,setUsers,homes,user}){
                 )}
                 {canDelete(u) && (
                   <Btn size="sm" variant="danger" onClick={()=>setConfirmDelete(u)}>Delete</Btn>
+                )}
+                {callerRole==="admin" && u.role==="social_worker" && (
+                  <Btn size="sm" variant="secondary" onClick={()=>setAssigningTo(u)}>Manage children</Btn>
                 )}
                 {!canEdit(u) && !canDelete(u) && (
                   <span style={{fontSize:12,color:"#7A6E62",fontStyle:"italic"}}>—</span>
@@ -2904,7 +3022,7 @@ export default function App(){
           {page==="sw-stories"       &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
-          {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user}/>}
+          {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
         </main>
       </div>
