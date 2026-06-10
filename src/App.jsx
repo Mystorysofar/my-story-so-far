@@ -1166,12 +1166,12 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
                             const url=URL.createObjectURL(blob);const a=document.createElement("a");
                             a.href=url;a.download=ch.title.replace(/ /g,"-")+".txt";a.click();URL.revokeObjectURL(url);
                           }}>⬇ Download</Btn>
-                          {ch.status==="approved"&&(user.role==="manager"||user.role==="staff")&&(
+                          {ch.status==="approved"&&(user.role==="admin"||user.role==="manager")&&(
                             <Btn size="sm" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',ch.id);if(error)console.warn('publish failed',error.message);setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"published"}:c));}} style={{background:"#1A6B6B",color:"#fff"}}>
                               📖 Publish to Child
                             </Btn>
                           )}
-                          {ch.status==="published"&&(user.role==="manager"||user.role==="staff")&&(
+                          {ch.status==="published"&&(user.role==="admin"||user.role==="manager")&&(
                             <Btn size="sm" variant="secondary" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',ch.id);if(error)console.warn('unpublish failed',error.message);setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"approved"}:c));}}>
                               ↩ Unpublish
                             </Btn>
@@ -1310,11 +1310,11 @@ function ApprovalsPage({user,children,chapters,setChapters}){
             </>
           ):(
             <>
-              {ch.status==="pending"&&<Btn onClick={()=>approve(ch.id)}>✓ Approve</Btn>}
-              {ch.status==="approved"&&<Btn variant="primary" onClick={()=>publish(ch.id)} style={{background:"#1A6B6B"}}>📖 Publish to Child</Btn>}
-              {ch.status==="published"&&<Btn variant="secondary" onClick={()=>unpublish(ch.id)}>↩ Unpublish</Btn>}
+              {(user.role==="admin"||user.role==="manager")&&ch.status==="pending"&&<Btn onClick={()=>approve(ch.id)}>✓ Approve</Btn>}
+              {(user.role==="admin"||user.role==="manager")&&ch.status==="approved"&&<Btn variant="primary" onClick={()=>publish(ch.id)} style={{background:"#1A6B6B"}}>📖 Publish to Child</Btn>}
+              {(user.role==="admin"||user.role==="manager")&&ch.status==="published"&&<Btn variant="secondary" onClick={()=>unpublish(ch.id)}>↩ Unpublish</Btn>}
               <Btn variant="ghost" onClick={()=>startEdit(ch)}>✏️ Edit</Btn>
-              <Btn variant="danger" onClick={()=>reject(ch.id)}>✕ Remove</Btn>
+              {(user.role==="admin"||user.role==="manager")&&<Btn variant="danger" onClick={()=>reject(ch.id)}>✕ Remove</Btn>}
             </>
           )}
         </div>
