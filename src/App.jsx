@@ -85,7 +85,7 @@ const fmtShort = (d) => new Date(d).toLocaleDateString("en-GB",{day:"numeric",mo
 
 // ── UI Primitives ─────────────────────────────────────────────────────────────
 function Badge({label,color}){
-  const m={approved:"#2D7D6B",published:"#1A6B6B",pending:"#C8860A",draft:"#5B5EA6",staff:"#5B5EA6",manager:"#2D7D6B",admin:"#B5464A",child:"#1A6B6B",active:"#2D7D6B",inactive:"#B5464A"};
+  const m={approved:"#2D7D6B",published:"#1A6B6B",pending:"#C8860A",changes_requested:"#B5464A",draft:"#5B5EA6",staff:"#5B5EA6",manager:"#2D7D6B",admin:"#B5464A",child:"#1A6B6B",active:"#2D7D6B",inactive:"#B5464A"};
   return <span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,letterSpacing:"0.05em",background:m[color]||"#aaa",color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>;
 }
 
@@ -799,6 +799,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
         staffId:c.staff_id,managerId:c.manager_id,
         staffInsights:c.staff_insights||"",childProgress:c.child_progress||"",
         sourceText:c.source_text||"",sourceFilename:c.source_filename||"",
+        feedbackNote:c.feedback_note||"",feedbackAt:c.feedback_at||null,
         created:c.created_at,
       }));
       setChapters((p)=>[...p,...translated]);
@@ -1258,13 +1259,24 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
 function ApprovalsPage({user,children,chapters,setChapters}){
   const pending=chapters.filter((c)=>c.status==="pending");
   const approved=chapters.filter((c)=>c.status==="approved");
+  const changesRequested=chapters.filter((c)=>c.status==="changes_requested");
   const [editingId,setEditingId]=useState(null);
   const [editContent,setEditContent]=useState({title:"",content:""});
+  const [sendBackId,setSendBackId]=useState(null);
+  const [feedbackText,setFeedbackText]=useState("");
 
   const approve=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved",manager_id:user.id}).eq('id',id);if(error)console.warn('approve failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved",managerId:user.id}:c));};
   const publish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',id);if(error)console.warn('publish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"published"}:c));};
   const unpublish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',id);if(error)console.warn('unpublish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved"}:c));};
   const reject=async(id)=>{const {error}=await supabase.from('chapters').delete().eq('id',id);if(error)console.warn('reject failed',error.message);setChapters((p)=>p.filter((c)=>c.id!==id));};
+  const sendBack=async(id)=>{
+    const note=feedbackText.trim();
+    if(!note){alert("Please write a note explaining what needs changing.");return;}
+    const {error}=await supabase.from('chapters').update({status:"changes_requested",feedback_note:note,feedback_by:user.id,feedback_at:new Date().toISOString()}).eq('id',id);
+    if(error){alert("Could not send back: "+error.message);return;}
+    setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"changes_requested",feedbackNote:note}:c));
+    setSendBackId(null);setFeedbackText("");
+  };
   const startEdit=(ch)=>{setEditingId(ch.id);setEditContent({title:ch.title,content:ch.content});};
   const saveEdit=async(id)=>{
     const {error}=await supabase.from('chapters').update({title:editContent.title,content:editContent.content}).eq('id',id);
@@ -1300,6 +1312,8 @@ function ApprovalsPage({user,children,chapters,setChapters}){
           </div>
         )}
 
+        {ch.status==="changes_requested"&&ch.feedbackNote&&!isEditing&&<div style={{marginBottom:14,padding:"12px 14px",background:"#FBEDED",borderRadius:10,border:"1px solid #E6B5B5"}}><p style={{fontSize:12,fontWeight:700,color:"#B5464A",marginBottom:4}}>↩ Changes requested by manager</p><p style={{fontSize:13,color:"#1A1612",lineHeight:1.6}}>{ch.feedbackNote}</p></div>}
+
         {ch.staffInsights&&!isEditing&&<div style={{marginBottom:14,padding:"10px 14px",background:"#EFF8F7",borderRadius:10,border:"1px solid #C0E0DC"}}><p style={{fontSize:12,fontWeight:700,color:"#2D7D6B",marginBottom:4}}>Staff Overview</p><p style={{fontSize:13,color:"#1A1612"}}>{ch.staffInsights.overview}</p></div>}
 
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1314,10 +1328,22 @@ function ApprovalsPage({user,children,chapters,setChapters}){
               {(user.role==="admin"||user.role==="manager")&&ch.status==="approved"&&<Btn variant="primary" onClick={()=>publish(ch.id)} style={{background:"#1A6B6B"}}>📖 Publish to Child</Btn>}
               {(user.role==="admin"||user.role==="manager")&&ch.status==="published"&&<Btn variant="secondary" onClick={()=>unpublish(ch.id)}>↩ Unpublish</Btn>}
               <Btn variant="ghost" onClick={()=>startEdit(ch)}>✏️ Edit</Btn>
+              {(user.role==="admin"||user.role==="manager")&&(ch.status==="pending"||ch.status==="approved")&&<Btn variant="secondary" onClick={()=>{setSendBackId(ch.id);setFeedbackText("");}}>↩ Send back</Btn>}
               {(user.role==="admin"||user.role==="manager")&&<Btn variant="danger" onClick={()=>reject(ch.id)}>✕ Remove</Btn>}
             </>
           )}
         </div>
+        {sendBackId===ch.id&&(
+          <div style={{marginTop:12,padding:"12px 14px",background:"#FBF3E6",borderRadius:10,border:"1px solid #E6CF9E"}}>
+            <p style={{fontSize:13,fontWeight:700,color:"#9A6A00",marginBottom:6}}>Send back to staff — what needs changing?</p>
+            <textarea value={feedbackText} onChange={(e)=>setFeedbackText(e.target.value)} rows={3} placeholder="e.g. Please add more detail about school progress, and check the dates."
+              style={{width:"100%",padding:"10px",borderRadius:8,border:"1px solid #DDD3C0",background:"#FFF",fontSize:13,lineHeight:1.6,resize:"vertical",outline:"none",marginBottom:8,fontFamily:"inherit"}}/>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="primary" onClick={()=>sendBack(ch.id)} style={{background:"#C8860A"}}>↩ Confirm send back</Btn>
+              <Btn variant="ghost" onClick={()=>{setSendBackId(null);setFeedbackText("");}}>Cancel</Btn>
+            </div>
+          </div>
+        )}
       </Card>
     );
   };
@@ -1343,7 +1369,7 @@ function ApprovalsPage({user,children,chapters,setChapters}){
         ))}
       </div>
 
-      {pending.length===0&&approved.length===0&&(
+      {pending.length===0&&approved.length===0&&changesRequested.length===0&&(
         <div className="fu2"><Card style={{textAlign:"center",padding:60}}><div style={{fontSize:48,marginBottom:12}}>✅</div><p style={{color:"#7A6E62"}}>All caught up — nothing to review.</p></Card></div>
       )}
 
@@ -1351,6 +1377,13 @@ function ApprovalsPage({user,children,chapters,setChapters}){
         <div className="fu2">
           <h3 style={{fontSize:14,fontWeight:700,color:"#C8860A",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>⏳ Pending Review ({pending.length})</h3>
           {pending.map((ch)=><ChapterCard key={ch.id} ch={ch} showPublish={false}/>)}
+        </div>
+      )}
+
+      {changesRequested.length>0&&(
+        <div className="fu2">
+          <h3 style={{fontSize:14,fontWeight:700,color:"#B5464A",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>↩ Sent Back — Awaiting Staff Changes ({changesRequested.length})</h3>
+          {changesRequested.map((ch)=><ChapterCard key={ch.id} ch={ch} showPublish={false}/>)}
         </div>
       )}
 
@@ -2610,6 +2643,8 @@ export default function App(){
           childProgress:c.child_progress||"",
           sourceText:c.source_text||"",
           sourceFilename:c.source_filename||"",
+          feedbackNote:c.feedback_note||"",
+          feedbackAt:c.feedback_at||null,
           created:c.created_at,
         }));
         setChapters(translated);
