@@ -1277,6 +1277,11 @@ function ApprovalsPage({user,children,chapters,setChapters}){
     setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"changes_requested",feedbackNote:note}:c));
     setSendBackId(null);
   };
+  const resubmit=async(id)=>{
+    const {error}=await supabase.from('chapters').update({status:"pending"}).eq('id',id);
+    if(error){alert("Could not resubmit: "+error.message);return;}
+    setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"pending"}:c));
+  };
   const startEdit=(ch)=>{setEditingId(ch.id);setEditContent({title:ch.title,content:ch.content});};
   const saveEdit=async(id)=>{
     const {error}=await supabase.from('chapters').update({title:editContent.title,content:editContent.content}).eq('id',id);
@@ -1328,6 +1333,7 @@ function ApprovalsPage({user,children,chapters,setChapters}){
               {(user.role==="admin"||user.role==="manager")&&ch.status==="approved"&&<Btn variant="primary" onClick={()=>publish(ch.id)} style={{background:"#1A6B6B"}}>📖 Publish to Child</Btn>}
               {(user.role==="admin"||user.role==="manager")&&ch.status==="published"&&<Btn variant="secondary" onClick={()=>unpublish(ch.id)}>↩ Unpublish</Btn>}
               <Btn variant="ghost" onClick={()=>startEdit(ch)}>✏️ Edit</Btn>
+              {ch.status==="changes_requested"&&<Btn variant="primary" onClick={()=>resubmit(ch.id)} style={{background:"#2D7D6B"}}>↩ Resubmit for review</Btn>}
               {(user.role==="admin"||user.role==="manager")&&(ch.status==="pending"||ch.status==="approved")&&<Btn variant="secondary" onClick={()=>{setSendBackId(ch.id);}}>↩ Send back</Btn>}
               {(user.role==="admin"||user.role==="manager")&&<Btn variant="danger" onClick={()=>reject(ch.id)}>✕ Remove</Btn>}
             </>
