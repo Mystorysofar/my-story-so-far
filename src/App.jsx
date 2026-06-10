@@ -1263,19 +1263,19 @@ function ApprovalsPage({user,children,chapters,setChapters}){
   const [editingId,setEditingId]=useState(null);
   const [editContent,setEditContent]=useState({title:"",content:""});
   const [sendBackId,setSendBackId]=useState(null);
-  const [feedbackText,setFeedbackText]=useState("");
+  const feedbackRef=useRef(null);
 
   const approve=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved",manager_id:user.id}).eq('id',id);if(error)console.warn('approve failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved",managerId:user.id}:c));};
   const publish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',id);if(error)console.warn('publish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"published"}:c));};
   const unpublish=async(id)=>{const {error}=await supabase.from('chapters').update({status:"approved"}).eq('id',id);if(error)console.warn('unpublish failed',error.message);setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"approved"}:c));};
   const reject=async(id)=>{const {error}=await supabase.from('chapters').delete().eq('id',id);if(error)console.warn('reject failed',error.message);setChapters((p)=>p.filter((c)=>c.id!==id));};
   const sendBack=async(id)=>{
-    const note=feedbackText.trim();
+    const note=(feedbackRef.current?.value||"").trim();
     if(!note){alert("Please write a note explaining what needs changing.");return;}
     const {error}=await supabase.from('chapters').update({status:"changes_requested",feedback_note:note,feedback_by:user.id,feedback_at:new Date().toISOString()}).eq('id',id);
     if(error){alert("Could not send back: "+error.message);return;}
     setChapters((p)=>p.map((c)=>c.id===id?{...c,status:"changes_requested",feedbackNote:note}:c));
-    setSendBackId(null);setFeedbackText("");
+    setSendBackId(null);
   };
   const startEdit=(ch)=>{setEditingId(ch.id);setEditContent({title:ch.title,content:ch.content});};
   const saveEdit=async(id)=>{
@@ -1328,7 +1328,7 @@ function ApprovalsPage({user,children,chapters,setChapters}){
               {(user.role==="admin"||user.role==="manager")&&ch.status==="approved"&&<Btn variant="primary" onClick={()=>publish(ch.id)} style={{background:"#1A6B6B"}}>📖 Publish to Child</Btn>}
               {(user.role==="admin"||user.role==="manager")&&ch.status==="published"&&<Btn variant="secondary" onClick={()=>unpublish(ch.id)}>↩ Unpublish</Btn>}
               <Btn variant="ghost" onClick={()=>startEdit(ch)}>✏️ Edit</Btn>
-              {(user.role==="admin"||user.role==="manager")&&(ch.status==="pending"||ch.status==="approved")&&<Btn variant="secondary" onClick={()=>{setSendBackId(ch.id);setFeedbackText("");}}>↩ Send back</Btn>}
+              {(user.role==="admin"||user.role==="manager")&&(ch.status==="pending"||ch.status==="approved")&&<Btn variant="secondary" onClick={()=>{setSendBackId(ch.id);}}>↩ Send back</Btn>}
               {(user.role==="admin"||user.role==="manager")&&<Btn variant="danger" onClick={()=>reject(ch.id)}>✕ Remove</Btn>}
             </>
           )}
@@ -1336,11 +1336,11 @@ function ApprovalsPage({user,children,chapters,setChapters}){
         {sendBackId===ch.id&&(
           <div style={{marginTop:12,padding:"12px 14px",background:"#FBF3E6",borderRadius:10,border:"1px solid #E6CF9E"}}>
             <p style={{fontSize:13,fontWeight:700,color:"#9A6A00",marginBottom:6}}>Send back to staff — what needs changing?</p>
-            <textarea value={feedbackText} onChange={(e)=>setFeedbackText(e.target.value)} rows={3} placeholder="e.g. Please add more detail about school progress, and check the dates."
+            <textarea ref={feedbackRef} defaultValue="" rows={3} placeholder="e.g. Please add more detail about school progress, and check the dates."
               style={{width:"100%",padding:"10px",borderRadius:8,border:"1px solid #DDD3C0",background:"#FFF",fontSize:13,lineHeight:1.6,resize:"vertical",outline:"none",marginBottom:8,fontFamily:"inherit"}}/>
             <div style={{display:"flex",gap:8}}>
               <Btn variant="primary" onClick={()=>sendBack(ch.id)} style={{background:"#C8860A"}}>↩ Confirm send back</Btn>
-              <Btn variant="ghost" onClick={()=>{setSendBackId(null);setFeedbackText("");}}>Cancel</Btn>
+              <Btn variant="ghost" onClick={()=>{setSendBackId(null);}}>Cancel</Btn>
             </div>
           </div>
         )}
