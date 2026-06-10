@@ -76,9 +76,13 @@ export default async function handler(req, res) {
     } else {
       return res.status(403).json({ error: 'Your role cannot invite users' });
     }
-    const allowedRoles = ['admin', 'manager', 'staff', 'child'];
+    const allowedRoles = ['admin', 'manager', 'staff', 'child', 'social_worker'];
     if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: 'Invalid role. Must be admin, manager, staff or child.' });
+      return res.status(400).json({ error: 'Invalid role. Must be admin, manager, staff, child or social_worker.' });
+    }
+    // Only admin may invite a social_worker (assignment to children is admin-only too).
+    if (role === 'social_worker' && callerRole !== 'admin') {
+      return res.status(403).json({ error: 'Only an admin can invite a social worker.' });
     }
 
     // Send the invite
