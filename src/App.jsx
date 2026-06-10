@@ -85,7 +85,7 @@ const fmtShort = (d) => new Date(d).toLocaleDateString("en-GB",{day:"numeric",mo
 
 // ── UI Primitives ─────────────────────────────────────────────────────────────
 function Badge({label,color}){
-  const m={approved:"#2D7D6B",published:"#1A6B6B",pending:"#C8860A",changes_requested:"#B5464A",draft:"#5B5EA6",staff:"#5B5EA6",manager:"#2D7D6B",admin:"#B5464A",child:"#1A6B6B",active:"#2D7D6B",inactive:"#B5464A"};
+  const m={approved:"#2D7D6B",published:"#1A6B6B",pending:"#C8860A",changes_requested:"#B5464A",draft:"#5B5EA6",staff:"#5B5EA6",social_worker:"#5B5EA6",manager:"#2D7D6B",admin:"#B5464A",child:"#1A6B6B",active:"#2D7D6B",inactive:"#B5464A"};
   return <span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,letterSpacing:"0.05em",background:m[color]||"#aaa",color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>;
 }
 
@@ -1729,7 +1729,7 @@ function AdminUsers({users,setUsers,homes,user}){
   // api/invite-user.js, api/update-user.js, api/delete-user.js.
   // We restrict the UI to match so users don't see actions the server will refuse.
   const allowedNewRoles =
-    callerRole === "admin"   ? ["admin","manager","staff","child"]
+    callerRole === "admin"   ? ["admin","manager","staff","social_worker","child"]
   : callerRole === "manager" ? ["staff","child"]
   : callerRole === "staff"   ? ["child"]
   : [];
@@ -1907,7 +1907,7 @@ function AdminUsers({users,setUsers,homes,user}){
             <FInput label="Email Address" value={form.email} onChange={(v)=>setForm(f=>({...f,email:v}))} type="email" required/>
             <FSelect label="Role" value={form.role} onChange={(v)=>setForm(f=>({...f,role:v}))} options={allowedNewRoles.map(r => ({
                 value: r,
-                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : "Child"
+                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : r === "social_worker" ? "Social Worker" : "Child"
               }))}/>
             <FSelect label="Home" value={form.home_id} onChange={(v)=>setForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— Select home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
           </div>
@@ -1943,7 +1943,7 @@ function AdminUsers({users,setUsers,homes,user}){
               <FInput label="Full Name" value={editingForm.name} onChange={(v)=>setEditingForm(f=>({...f,name:v}))} required/>
               <FSelect label="Role" value={editingForm.role} onChange={(v)=>setEditingForm(f=>({...f,role:v}))} options={allowedNewRoles.map(r => ({
                 value: r,
-                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : "Child"
+                label: r === "admin" ? "Admin" : r === "manager" ? "Manager" : r === "staff" ? "Staff" : r === "social_worker" ? "Social Worker" : "Child"
               }))}/>
               <FSelect label="Home" value={editingForm.home_id} onChange={(v)=>setEditingForm(f=>({...f,home_id:v}))} options={[{value:"",label:"— No home —"},...(homes||[]).map(h=>({value:h.id,label:h.name}))]}/>
             </div>
@@ -2474,7 +2474,7 @@ function SignInModal({onLogin,onClose}){
                       {(isTrevor?trevorRoles:matchingUsers).map(u=>(
                         <button key={u.role} onClick={()=>setSelectedRole(u.role)}
                           style={{flex:1,padding:"9px 12px",borderRadius:8,border:"2px solid "+(selectedRole===u.role?"#1A6B6B":"#DDD3C0"),background:selectedRole===u.role?"#EFF8F7":"#F8F5F0",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:selectedRole===u.role?700:500,color:selectedRole===u.role?"#1A6B6B":"#7A6E62",transition:"all 0.18s",textTransform:"capitalize"}}>
-                          {u.role==="admin"?"🏛 Admin":u.role==="manager"?"👔 Manager":u.role==="staff"?"👤 Staff":u.role==="child"?"📖 Child":"👤 "+u.role}
+                          {u.role==="admin"?"🏛 Admin":u.role==="manager"?"👔 Manager":u.role==="staff"?"👤 Staff":u.role==="social_worker"?"🧑‍⚖️ Social Worker":u.role==="child"?"📖 Child":"👤 "+u.role}
                         </button>
                       ))}
                     </div>
