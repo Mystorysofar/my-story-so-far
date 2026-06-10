@@ -347,6 +347,7 @@ const NAV_BY_ROLE = {
   manager:["dashboard","children","new-chapter","chapters","approvals","admin-users"],
   admin:  ["admin-dashboard","admin-homes","admin-users","admin-settings","children","new-chapter","chapters","approvals"],
   child:  ["my-story","my-progress"],
+  social_worker: ["sw-stories"],
 };
 const NAV_META = {
   dashboard:       {icon:"🏠",label:"Dashboard"},
@@ -358,6 +359,7 @@ const NAV_META = {
   "admin-homes":   {icon:"🏡",label:"Care Homes"},
   "admin-users":   {icon:"👥",label:"All Users"},
   "admin-settings":{icon:"⚙️",label:"Platform Settings"},
+  "sw-stories":    {icon:"📖",label:"Children's Stories"},
   "my-story":      {icon:"📖",label:"My Story"},
   "my-progress":   {icon:"⭐",label:"My Progress"},
 };
@@ -1407,6 +1409,108 @@ function ApprovalsPage({user,children,chapters,setChapters}){
 }
 
 // ── Child Portal ──────────────────────────────────────────────────────────────
+// ── Social Worker read-only view ───────────────────────────────────────────────
+// A social worker sees ONLY their assigned children and ONLY published chapters.
+// Security is enforced server-side by RLS (chapters_social_worker_select +
+// csw_self_select) — so `children` and `chapters` already arrive pre-filtered.
+// This component issues no queries of its own; it only presents what it's given.
+function SocialWorkerView({user,children,chapters}){
+  const [openChildId,setOpenChildId]=useState(null);
+
+  const publishedByChild = (childId) =>
+    chapters
+      .filter((c)=>c.childId===childId && c.status==="published")
+      .sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  const assignedChildren = children;
+
+  const exportChild = (child) => {
+    const chs = publishedByChild(child.id);
+    const win = window.open("","_blank");
+    if(!win) return;
+    win.document.write(`<html><head><title>${child.preferredName}'s Story So Far</title>
+    <style>
+      body{font-family:Georgia,'Times New Roman',serif;color:#1A1612;max-width:680px;margin:40px auto;padding:0 24px;line-height:1.8;}
+      h1{font-size:32px;text-align:center;margin-bottom:4px;}
+      .sub{text-align:center;color:#7A6E62;margin-bottom:40px;}
+      .ch{margin-bottom:40px;page-break-inside:avoid;}
+      .num{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#1A6B6B;margin-bottom:4px;}
+      h2{font-size:22px;margin-bottom:6px;}
+      .date{font-size:12px;color:#aaa;margin-bottom:14px;}
+      p{margin-bottom:12px;}hr{border:none;border-top:1px solid #DDD3C0;margin:32px 0;}
+      .foot{margin-top:48px;text-align:center;font-size:11px;color:#aaa;}
+    </style></head><body>
+    <h1>${child.preferredName}'s Story So Far</h1>
+    <p class="sub">A personal life story book</p>
+    ${chs.map((ch,i)=>`<div class="ch"><div class="num">Chapter ${i+1}</div><h2>${ch.title}</h2><div class="date">${fmtDate(ch.date)}</div>${(ch.content||"").split("\n").filter(Boolean).map((para)=>`<p>${para}</p>`).join("")}</div>${i<chs.length-1?"<hr>":""}`).join("")}
+    <p class="foot">Exported for ${user.name} · ${fmtDate(new Date())} · My Story So Far</p>
+    </body></html>`);
+    win.document.close();
+    win.print();
+  };
+
+  return(
+    <div>
+      <div className="fu">
+        <PageHeader title="Children's Stories" subtitle="Published life stories for the children allocated to you. Read-only."/>
+      </div>
+
+      {assignedChildren.length===0 && (
+        <Card style={{textAlign:"center",padding:"56px 24px"}}>
+          <div style={{fontSize:48,marginBottom:14}}>🧑‍⚖️</div>
+          <h3 style={{fontSize:18,marginBottom:8}}>No children assigned yet</h3>
+          <p style={{fontSize:14,color:"#7A6E62",maxWidth:420,margin:"0 auto"}}>
+            When a manager or administrator allocates a child to you, their published story will appear here.
+          </p>
+        </Card>
+      )}
+
+      {assignedChildren.map((child)=>{
+        const chs = publishedByChild(child.id);
+        const isOpen = openChildId===child.id;
+        return(
+          <Card key={child.id} style={{marginBottom:16,padding:0,overflow:"hidden"}}>
+            <div
+              onClick={()=>setOpenChildId(isOpen?null:child.id)}
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 22px",cursor:"pointer"}}>
+              <div>
+                <div style={{fontSize:17,fontWeight:700,color:"#1A1612"}}>{child.preferredName}</div>
+                <div style={{fontSize:13,color:"#7A6E62",marginTop:2}}>
+                  {chs.length===0 ? "No published chapters yet" : `${chs.length} published chapter${chs.length>1?"s":""}`}
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {chs.length>0 && (
+                  <Btn variant="secondary" onClick={(e)=>{e.stopPropagation();exportChild(child);}}>⬇ Save as PDF</Btn>
+                )}
+                <span style={{fontSize:18,color:"#7A6E62",transform:isOpen?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
+              </div>
+            </div>
+
+            {isOpen && (
+              <div style={{borderTop:"1px solid #EFE9DE",padding:"8px 22px 22px"}}>
+                {chs.length===0 && (
+                  <p style={{fontSize:14,color:"#7A6E62",padding:"16px 0"}}>This child has no published chapters yet.</p>
+                )}
+                {chs.map((ch,i)=>(
+                  <div key={ch.id} style={{padding:"18px 0",borderBottom:i<chs.length-1?"1px solid #F0EBE2":"none"}}>
+                    <div style={{fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"#1A6B6B",marginBottom:4}}>Chapter {i+1}</div>
+                    <h3 style={{fontSize:19,marginBottom:4,color:"#1A1612"}}>{ch.title}</h3>
+                    <div style={{fontSize:12,color:"#aaa",marginBottom:12}}>{fmtDate(ch.date)}</div>
+                    {(ch.content||"").split("\n").filter(Boolean).map((para,pi)=>(
+                      <p key={pi} style={{fontSize:15,lineHeight:1.8,color:"#2A241E",marginBottom:12}}>{para}</p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function ChildStoryPage({user,chapters,children}){
   const myChapters=chapters.filter((c)=>c.childId===user.childId&&c.status==="published");
   const [selectedStyle,setSelectedStyle]=useState("personal");
@@ -2755,6 +2859,7 @@ export default function App(){
     setUser(u);
     if(isRehydrate) return;
     if(u.role==="child") setPage("my-story");
+    else if(u.role==="social_worker") setPage("sw-stories");
     else if(u.role==="admin") setPage("admin-dashboard");
     else setPage("dashboard");
   };
@@ -2796,6 +2901,7 @@ export default function App(){
           {page==="approvals"        &&<ApprovalsPage     {...p}/>}
           {page==="my-story"         &&<ChildStoryPage    user={user} chapters={chapters} children={children}/>}
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
+          {page==="sw-stories"       &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user}/>}
