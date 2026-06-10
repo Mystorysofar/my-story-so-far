@@ -469,6 +469,7 @@ function Dashboard({user,children,chapters,setPage}){
 
 // ── Children Page ─────────────────────────────────────────────────────────────
 function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild,homes}){
+  const [swPanelChild,setSwPanelChild]=useState(null); // child whose social-workers panel is open
   const [showForm,setShowForm]=useState(false);
   const [showArchived,setShowArchived]=useState(false);
   const [mode,setMode]=useState("upload");
@@ -675,6 +676,7 @@ DOCUMENT: ${text.slice(0,3000)}`;
               <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                 {cc.length>0&&<Btn size="sm" variant="secondary" onClick={()=>{setActiveChild(child);setPage("chapters");}}>📖 View Story</Btn>}
                 <Btn size="sm" onClick={()=>{setActiveChild(child);setPage("new-chapter");}}>✍️ {cc.length===0?"Start Story":"Add Report"}</Btn>
+                {(user?.role==="manager"||user?.role==="admin")&&<Btn size="sm" variant="ghost" onClick={()=>setSwPanelChild(child)}>🧑‍⚖️ Social workers</Btn>}
                 <button onClick={async()=>{
                   const newArchived=!child.archived;
                   setChildren((p)=>p.map((c)=>c.id===child.id?{...c,archived:newArchived}:c));
@@ -690,6 +692,9 @@ DOCUMENT: ${text.slice(0,3000)}`;
           );
         })}
       </div>
+      {swPanelChild && (
+        <ChildSocialWorkersPanel child={swPanelChild} onClose={()=>setSwPanelChild(null)} />
+      )}
     </div>
   );
 }
@@ -1409,6 +1414,137 @@ function ApprovalsPage({user,children,chapters,setChapters}){
 }
 
 // ── Child Portal ──────────────────────────────────────────────────────────────
+// ── Per-child social workers panel (manager + admin) ───────────────────────────
+// Opened for one child. Lists that child's social workers via the caller-scoped
+// /api/child-social-workers route, lets you invite a new one by email (POSTs to
+// /api/invite-user with child_id — the route does reuse-or-invite then links),
+// and remove one (POST action=remove). All three calls carry the caller's Bearer
+// token; the server verifies entitlement. No direct DB access from here.
+function ChildSocialWorkersPanel({child,onClose}){
+  const [list,setList]=useState(null);      // null = loading
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [removingId,setRemovingId]=useState(null);
+  const [form,setForm]=useState({name:"",email:""});
+  const [notice,setNotice]=useState("");
+
+  const authedFetch=async(url,opts={})=>{
+    const { data:{session} } = await supabase.auth.getSession();
+    if(!session) throw new Error("Your session has expired. Please sign in again.");
+    return fetch(url,{
+      ...opts,
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":`Bearer ${session.access_token}`,
+        ...(opts.headers||{}),
+      },
+    });
+  };
+
+  const loadList=async()=>{
+    setErr("");
+    try{
+      const res=await authedFetch(`/api/child-social-workers?child_id=${encodeURIComponent(child.id)}`);
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok){ setErr(data.error||"Could not load social workers"); setList([]); return; }
+      setList(data.social_workers||[]);
+    }catch(e){ setErr(e.message); setList([]); }
+  };
+
+  useEffect(()=>{ loadList(); /* eslint-disable-next-line */ },[child.id]);
+
+  const invite=async()=>{
+    setErr(""); setNotice("");
+    if(!form.name.trim()||!form.email.trim()){ setErr("Please enter the social worker's name and email."); return; }
+    setBusy(true);
+    try{
+      const res=await authedFetch("/api/invite-user",{
+        method:"POST",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          role: "social_worker",
+          child_id: child.id,
+        }),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok){ setErr(data.error||"Could not invite social worker"); setBusy(false); return; }
+      setNotice(data.reused
+        ? `${form.email} already had an account — linked to ${child.preferredName}.`
+        : `Invite sent to ${form.email}. They'll get an email to set a password.`);
+      setForm({name:"",email:""});
+      await loadList();
+    }catch(e){ setErr(e.message); }
+    setBusy(false);
+  };
+
+  const remove=async(sw)=>{
+    setErr(""); setNotice("");
+    setRemovingId(sw.id);
+    try{
+      const res=await authedFetch("/api/child-social-workers",{
+        method:"POST",
+        body: JSON.stringify({ child_id: child.id, social_worker_id: sw.id, action:"remove" }),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok){ setErr(data.error||"Could not remove"); setRemovingId(null); return; }
+      setList(prev=>(prev||[]).filter(x=>x.id!==sw.id));
+    }catch(e){ setErr(e.message); }
+    setRemovingId(null);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+      <Card style={{maxWidth:520,width:"100%",padding:28,maxHeight:"85vh",overflowY:"auto"}}>
+        <h3 style={{fontSize:17,marginBottom:4}}>Social workers for {child.preferredName}</h3>
+        <p style={{fontSize:13,color:"#7A6E62",marginBottom:18}}>
+          A social worker gets read-only access to {child.preferredName}'s published life story. Invite by email; they'll set their own password. Remove access any time.
+        </p>
+
+        {err&&<p style={{color:"#B5464A",fontSize:13,background:"#FFF0EF",padding:"8px 12px",borderRadius:8,marginBottom:14}}>{err}</p>}
+        {notice&&<p style={{color:"#1A6B6B",fontSize:13,background:"#EFF8F7",padding:"8px 12px",borderRadius:8,marginBottom:14}}>{notice}</p>}
+
+        {/* Current social workers */}
+        <div style={{fontSize:12,fontWeight:700,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Current</div>
+        {list===null && <p style={{fontSize:14,color:"#7A6E62",padding:"8px 0"}}>Loading…</p>}
+        {list!==null && list.length===0 && (
+          <p style={{fontSize:14,color:"#7A6E62",padding:"8px 0 16px"}}>No social workers assigned yet.</p>
+        )}
+        {list!==null && list.length>0 && (
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+            {list.map(sw=>{
+              const isRemoving=removingId===sw.id;
+              return(
+                <div key={sw.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:10,border:"1px solid #EFE9DE",background:"#fff",opacity:isRemoving?0.5:1}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:600,color:"#1A1612"}}>{sw.name}</div>
+                    {sw.email&&<div style={{fontSize:12,color:"#7A6E62"}}>{sw.email}</div>}
+                  </div>
+                  <Btn size="sm" variant="danger" disabled={isRemoving} onClick={()=>remove(sw)}>{isRemoving?"Removing…":"Remove"}</Btn>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Invite a new one */}
+        <div style={{borderTop:"1px solid #EFE9DE",paddingTop:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Invite a social worker</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <FInput label="Full Name" value={form.name} onChange={(v)=>setForm(f=>({...f,name:v}))}/>
+            <FInput label="Email Address" value={form.email} onChange={(v)=>setForm(f=>({...f,email:v}))} type="email"/>
+          </div>
+          <Btn onClick={invite} disabled={busy}>{busy?"Sending…":"Send invite"}</Btn>
+        </div>
+
+        <div style={{marginTop:22,display:"flex",justifyContent:"flex-end"}}>
+          <Btn variant="secondary" onClick={onClose}>Done</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── Admin: assign children to a social worker ──────────────────────────────────
 // Opens for one social worker. Reads their existing child_social_workers rows,
 // shows all ACTIVE (non-archived) children as checkboxes, writes (insert/delete)
