@@ -1425,6 +1425,7 @@ function ChildSocialWorkersPanel({child,onClose}){
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
   const [removingId,setRemovingId]=useState(null);
+  const [confirmRemove,setConfirmRemove]=useState(null); // SW awaiting remove confirmation
   const [form,setForm]=useState({name:"",email:""});
   const [notice,setNotice]=useState("");
 
@@ -1491,11 +1492,25 @@ function ChildSocialWorkersPanel({child,onClose}){
       setList(prev=>(prev||[]).filter(x=>x.id!==sw.id));
     }catch(e){ setErr(e.message); }
     setRemovingId(null);
+    setConfirmRemove(null);
   };
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
       <Card style={{maxWidth:520,width:"100%",padding:28,maxHeight:"85vh",overflowY:"auto"}}>
+        {confirmRemove && (
+          <div style={{position:"fixed",inset:0,background:"rgba(26,22,18,0.55)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:16}}>
+            <Card style={{maxWidth:400,width:"100%",textAlign:"center",padding:32}}>
+              <div style={{fontSize:40,marginBottom:12}}>🧑‍⚖️</div>
+              <h3 style={{fontSize:18,marginBottom:8}}>Remove {confirmRemove.name}?</h3>
+              <p style={{fontSize:13,color:"#7A6E62",marginBottom:24}}>This removes {confirmRemove.name}'s read-only access to {child.preferredName}'s story. They will no longer be able to view it. You can re-invite them later.</p>
+              <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                <Btn variant="danger" onClick={()=>remove(confirmRemove)}>Yes, remove</Btn>
+                <Btn variant="secondary" onClick={()=>setConfirmRemove(null)}>Cancel</Btn>
+              </div>
+            </Card>
+          </div>
+        )}
         <h3 style={{fontSize:17,marginBottom:4}}>Social workers for {child.preferredName}</h3>
         <p style={{fontSize:13,color:"#7A6E62",marginBottom:18}}>
           A social worker gets read-only access to {child.preferredName}'s published life story. Invite by email; they'll set their own password. Remove access any time.
@@ -1520,7 +1535,7 @@ function ChildSocialWorkersPanel({child,onClose}){
                     <div style={{fontSize:14,fontWeight:600,color:"#1A1612"}}>{sw.name}</div>
                     {sw.email&&<div style={{fontSize:12,color:"#7A6E62"}}>{sw.email}</div>}
                   </div>
-                  <Btn size="sm" variant="danger" disabled={isRemoving} onClick={()=>remove(sw)}>{isRemoving?"Removing…":"Remove"}</Btn>
+                  <Btn size="sm" variant="danger" disabled={isRemoving} onClick={()=>setConfirmRemove(sw)}>{isRemoving?"Removing…":"Remove"}</Btn>
                 </div>
               );
             })}
