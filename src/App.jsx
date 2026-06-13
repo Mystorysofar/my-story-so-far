@@ -746,13 +746,13 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
   const saveEntry=async()=>{
     if(!result||!selectedChild) return;
     const isoDate=reportMonth?new Date(reportMonth+'-01').toISOString():result.reportDate?new Date(result.reportDate).toISOString():new Date().toISOString();
-    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights:result.staffInsights||"",child_progress: typeof result.childProgress==="object" && result.childProgress ? JSON.stringify(result.childProgress) : (result.childProgress||"")};
+    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights: typeof result.staffInsights==="object" && result.staffInsights ? JSON.stringify(result.staffInsights) : (result.staffInsights||""),child_progress: typeof result.childProgress==="object" && result.childProgress ? JSON.stringify(result.childProgress) : (result.childProgress||"")};
     const {data,error}=await supabase.from('chapters').insert(row).select().single();
     if(error){
       console.warn('chapter save failed, falling back to local',error.message);
       setChapters((p)=>[...p,{id:Date.now(),childId:selectedChild.id,title:result.chapter.title,date:isoDate,status:"pending",content:result.chapter.content,reportType:"monthly",staffId:user.id,managerId:null,staffInsights:result.staffInsights,childProgress:result.childProgress}]);
     }else{
-      setChapters((p)=>[...p,{id:data.id,childId:data.child_id,title:data.title,content:data.content||"",date:data.date,status:data.status||"pending",reportType:data.report_type||"monthly",staffId:data.staff_id,managerId:data.manager_id,staffInsights:data.staff_insights||"",childProgress:data.child_progress||"",sourceText:data.source_text||"",sourceFilename:data.source_filename||"",created:data.created_at}]);
+      setChapters((p)=>[...p,{id:data.id,childId:data.child_id,title:data.title,content:data.content||"",date:data.date,status:data.status||"pending",reportType:data.report_type||"monthly",staffId:data.staff_id,managerId:data.manager_id,staffInsights:parseInsights(data.staff_insights),childProgress:parseProgress(data.child_progress),sourceText:data.source_text||"",sourceFilename:data.source_filename||"",created:data.created_at}]);
     }
     setSaved(true);
   };
@@ -787,7 +787,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       report_type:"monthly",
       staff_id:user.id,
       manager_id:null,
-      staff_insights:r.staffInsights||"",
+      staff_insights: typeof r.staffInsights==="object" && r.staffInsights ? JSON.stringify(r.staffInsights) : (r.staffInsights||""),
       child_progress:r.childProgress||"",
     }));
     const {data,error}=await supabase.from('chapters').insert(rows).select();
@@ -796,7 +796,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       const fallback=rows.map((row,i)=>({
         id:Date.now()+i,childId:row.child_id,title:row.title,content:row.content,date:row.date,
         status:row.status,reportType:row.report_type,staffId:row.staff_id,managerId:row.manager_id,
-        staffInsights:row.staff_insights,childProgress:row.child_progress,
+        staffInsights:parseInsights(row.staff_insights),childProgress:parseProgress(row.child_progress),
       }));
       setChapters((p)=>[...p,...fallback]);
     }else{
@@ -804,7 +804,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
         id:c.id,childId:c.child_id,title:c.title,content:c.content||"",date:c.date,
         status:c.status||"pending",reportType:c.report_type||"monthly",
         staffId:c.staff_id,managerId:c.manager_id,
-        staffInsights:c.staff_insights||"",childProgress:parseProgress(c.child_progress),
+        staffInsights:parseInsights(c.staff_insights),childProgress:parseProgress(c.child_progress),
         sourceText:c.source_text||"",sourceFilename:c.source_filename||"",
         feedbackNote:c.feedback_note||"",feedbackAt:c.feedback_at||null,
         created:c.created_at,
@@ -1670,6 +1670,20 @@ function ChildAssignmentPanel({socialWorker,children,homes,adminId,onClose}){
 // on load (childProgress arrives as a raw string app-wide). Parse defensively so
 // this works whether it's a string, already an object, or empty/malformed.
 function parseProgress(raw){
+  if(!raw) return null;
+  if(typeof raw === "object") return raw;
+  if(typeof raw === "string"){
+    try{ const o=JSON.parse(raw); return (o && typeof o==="object") ? o : null; }
+    catch(e){ return null; }
+  }
+  return null;
+}
+
+// staff_insights is also stored as a JSON *string* in a text column and is NOT
+// parsed on load — same shape problem as child_progress. Parse defensively so the
+// Staff Insights tab (.overview/.tips/.trendAnalysis) renders instead of showing
+// an empty "Overview:". Returns null for empty/malformed.
+function parseInsights(raw){
   if(!raw) return null;
   if(typeof raw === "object") return raw;
   if(typeof raw === "string"){
@@ -3103,7 +3117,7 @@ export default function App(){
           reportType:c.report_type||"monthly",
           staffId:c.staff_id,
           managerId:c.manager_id,
-          staffInsights:c.staff_insights||"",
+          staffInsights:parseInsights(c.staff_insights),
           childProgress:parseProgress(c.child_progress),
           sourceText:c.source_text||"",
           sourceFilename:c.source_filename||"",
