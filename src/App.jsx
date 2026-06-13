@@ -1665,6 +1665,90 @@ function ChildAssignmentPanel({socialWorker,children,homes,adminId,onClose}){
 
 // ── Social Worker read-only view ───────────────────────────────────────────────
 // A social worker sees ONLY their assigned children and ONLY published chapters.
+// ── Progress helpers for the social-worker view ───────────────────────────────
+// child_progress is stored as a JSON *string* in a text column and is NOT parsed
+// on load (childProgress arrives as a raw string app-wide). Parse defensively so
+// this works whether it's a string, already an object, or empty/malformed.
+function parseProgress(raw){
+  if(!raw) return null;
+  if(typeof raw === "object") return raw;
+  if(typeof raw === "string"){
+    try{ const o=JSON.parse(raw); return (o && typeof o==="object") ? o : null; }
+    catch(e){ return null; }
+  }
+  return null;
+}
+
+// Compact per-child progress snapshot shown inside a child's card in the SW view.
+// Derives mood/effort/social trends + a strengths roll-up from that child's
+// PUBLISHED chapters only (same child-facing data already in the story — not
+// internal staff notes). Built to stay readable across a large caseload.
+function ChildProgressSummary({chapters}){
+  // chapters passed in are already this child's published chapters, oldest-first.
+  const points = chapters
+    .map(c=>({date:c.date, p:parseProgress(c.childProgress)}))
+    .filter(x=>x.p && (x.p.mood!=null || x.p.effort!=null || x.p.social!=null));
+
+  if(points.length===0) return null; // nothing to show; caller renders chapters as usual
+
+  const metrics=[["Mood","mood","#C8860A"],["Effort","effort","#2D7D6B"],["Getting on with others","social","#5B5EA6"]];
+
+  // Roll up unique strengths across the published chapters (most recent first),
+  // capped so a long history stays glanceable.
+  const seen=new Set();
+  const strengths=[];
+  for(let i=points.length-1;i>=0;i--){
+    (points[i].p.strengths||[]).forEach(s=>{
+      const key=(s||"").trim();
+      if(key && !seen.has(key)){ seen.add(key); strengths.push(key); }
+    });
+  }
+  const shownStrengths=strengths.slice(0,6);
+
+  return(
+    <div style={{borderTop:"1px solid #EFE9DE",padding:"18px 0 4px"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:14}}>Progress snapshot</div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:shownStrengths.length?18:2}}>
+        {metrics.map(([label,key,color])=>{
+          const latest=[...points].reverse().find(pt=>pt.p[key]!=null);
+          const latestVal=latest?latest.p[key]:null;
+          return(
+            <div key={key} style={{background:"#FBF9F5",border:"1px solid #EFE9DE",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{fontSize:12,color:"#7A6E62"}}>{label}</div>
+                <div style={{fontSize:15,fontWeight:700,color}}>{latestVal!=null?`${latestVal}/5`:"—"}</div>
+              </div>
+              {/* tiny trend: one bar per published chapter with this metric */}
+              <div style={{display:"flex",alignItems:"flex-end",gap:3,height:34}}>
+                {points.map((pt,i)=>{
+                  const v=pt.p[key];
+                  const h=v!=null?Math.max(8,(v/5)*34):4;
+                  return <div key={i} title={v!=null?`${fmtDate(pt.date)}: ${v}/5`:fmtDate(pt.date)}
+                    style={{flex:1,height:h,background:v!=null?color:"#E7E0D4",borderRadius:3,opacity:v!=null?(0.45+0.55*(i+1)/points.length):0.5}}/>;
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {shownStrengths.length>0 && (
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>Strengths noted</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {shownStrengths.map((s,i)=>(
+              <div key={i} style={{display:"flex",gap:8,fontSize:13,lineHeight:1.5,color:"#1A1612"}}>
+                <span style={{color:"#2D7D6B",flexShrink:0}}>★</span><span>{s}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Security is enforced server-side by RLS (chapters_social_worker_select +
 // csw_self_select) — so `children` and `chapters` already arrive pre-filtered.
 // This component issues no queries of its own; it only presents what it's given.
@@ -1756,6 +1840,7 @@ function SocialWorkerView({user,children,chapters}){
                     ))}
                   </div>
                 ))}
+                <ChildProgressSummary chapters={chs}/>
               </div>
             )}
           </Card>
