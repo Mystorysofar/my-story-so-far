@@ -98,6 +98,18 @@ export default async function handler(req, res) {
 
     // Social worker with a child: reuse-or-invite, then link.
     if (role === 'social_worker' && child_id) {
+      // Look up the child's name so the invite email can name them.
+      // (Done here so it works whether an admin or a manager triggered the invite.)
+      let child_name = null;
+      {
+        const { data: cn } = await admin
+          .from('children')
+          .select('preferred_name')
+          .eq('id', child_id)
+          .single();
+        child_name = cn?.preferred_name || null;
+      }
+
       const { data: existing, error: existErr } = await admin
         .from('profiles')
         .select('id, role')
@@ -115,7 +127,7 @@ export default async function handler(req, res) {
         swId = existing.id;
       } else {
         const { data: inviteData, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-          data: { name, role: 'social_worker', home_id: null, needs_password_set: true },
+          data: { name, role: 'social_worker', home_id: null, needs_password_set: true, child_name },
         });
         if (inviteErr) {
           return res.status(400).json({ error: inviteErr.message });
