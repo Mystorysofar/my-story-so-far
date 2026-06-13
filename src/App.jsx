@@ -3158,19 +3158,24 @@ export default function App(){
 
   const p={user,children,setChildren,chapters,setChapters,activeChild,setActiveChild,setPage,homes,setHomes};
 
+  // A social worker must never see the generic dashboard (it can briefly show on
+  // refresh / right after setting a password, before role routing settles). Force
+  // their read-only stories view whenever the page would otherwise be the dashboard.
+  const effPage = (user.role==="social_worker" && page==="dashboard") ? "sw-stories" : page;
+
   return(
     <><G/>
       <div style={{display:"flex",minHeight:"100vh"}}>
         <Sidebar user={user} page={page} setPage={setPage} onLogout={async()=>{await supabase.auth.signOut();setUser(null);setNeedsPasswordSet(false);setPage("dashboard");}}/>
         <main style={{flex:1,padding:"32px 36px",overflowY:"auto",background:"#F8F5F0"}}>
-          {page==="dashboard"        &&<Dashboard        {...p}/>}
+          {effPage==="dashboard"     &&<Dashboard        {...p}/>}
           {page==="children"         &&<ChildrenPage      {...p}/>}
           {page==="new-chapter"      &&<NewChapterPage    {...p}/>}
           {page==="chapters"         &&<ChaptersPage      {...p}/>}
           {page==="approvals"        &&<ApprovalsPage     {...p}/>}
           {page==="my-story"         &&<ChildStoryPage    user={user} chapters={chapters} children={children}/>}
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
-          {page==="sw-stories"       &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
+          {effPage==="sw-stories"    &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
