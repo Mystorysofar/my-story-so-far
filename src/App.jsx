@@ -1050,7 +1050,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
 }
 
 // ── Story Timeline ────────────────────────────────────────────────────────────
-function ChaptersPage({user,children,chapters,setChapters,setPage,activeChild,setActiveChild}){
+function ChaptersPage({user,children,chapters,setChapters,setPage,activeChild,setActiveChild,allUsers=[]}){
   const [filterChildId,setFilterChildId]=useState(activeChild?String(activeChild.id):"");
   const [openId,setOpenId]=useState(null);
   const [tab,setTab]=useState("story");
@@ -1161,6 +1161,14 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
                         <div style={{fontSize:11,color:"#7A6E62",fontWeight:600,marginBottom:1}}>Chapter {i+1}{!filterChildId&&chChild?" — "+chChild.preferredName:""}</div>
                         <h3 style={{fontSize:16,color:"#1A1612"}}>{ch.title}</h3>
                         <div style={{fontSize:12,color:"#7A6E62"}}>{fmtDate(ch.date)}</div>
+                        {(() => {
+                          const wb=allUsers.find(u=>u.id===ch.staffId);
+                          const ab=allUsers.find(u=>u.id===ch.managerId);
+                          if(!wb&&!ab) return null;
+                          return <div style={{fontSize:11,color:"#9A8E80",marginTop:2}}>
+                            {wb?`Written by ${wb.name}`:""}{wb&&ab?" · ":""}{ab?`Approved by ${ab.name}`:""}
+                          </div>;
+                        })()}
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Badge label={ch.status} color={ch.status}/>
