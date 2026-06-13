@@ -2073,7 +2073,7 @@ function ChildProgressPage({user,chapters,children}){
 }
 
 // ── Admin Panel ───────────────────────────────────────────────────────────────
-function AdminDashboard({homes,users,chapters}){
+function AdminDashboard({homes,users,chapters,children=[]}){
   const stats=[
     {label:"Care Homes",value:homes.length,icon:"🏡",color:"#1A6B6B"},
     {label:"Total Users",value:users.length,icon:"👥",color:"#5B5EA6"},
@@ -2091,7 +2091,7 @@ function AdminDashboard({homes,users,chapters}){
           <h3 style={{fontSize:15,marginBottom:14}}>🏡 Registered Homes</h3>
           {homes.map((h)=>(
             <div key={h.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #EFE9DE"}}>
-              <div><span style={{fontWeight:600}}>{h.name}</span><span style={{color:"#7A6E62",fontSize:13,marginLeft:8}}>· {h.childCount} children</span></div>
+              <div><span style={{fontWeight:600}}>{h.name}</span><span style={{color:"#7A6E62",fontSize:13,marginLeft:8}}>· {children.filter(c=>String(c.homeId)===String(h.id)&&!c.archived).length} children</span></div>
               <div style={{display:"flex",gap:10,alignItems:"center"}}><Badge label={h.status} color={h.status}/><Badge label={h.plan} color="staff"/></div>
             </div>
           ))}
@@ -3251,7 +3251,7 @@ export default function App(){
           {page==="my-story"         &&<ChildStoryPage    user={user} chapters={chapters} children={children}/>}
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
           {effPage==="sw-stories"    &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
-          {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters}/>}
+          {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters} children={children}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
