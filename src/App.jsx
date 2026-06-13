@@ -34,9 +34,13 @@ const G = () => (
 );
 
 // ── Data ──────────────────────────────────────────────────────────────────────
+// Legacy author-name lookup only (chapter "By ..." fallback at ChapterCard).
+// NOT used for auth — login is Supabase-only. staffId on real chapters is a
+// Supabase UUID so this rarely matches; proper fix is to read the author from
+// profiles (parked: chapters.staff_id is not a FK).
 const DEFAULT_USERS = [
-  {id:1,name:"Trevor Elliott",email:"hello@trevorelliottmbe.co.uk",role:"admin",  password:"Trevor2025",homeId:1,subscription:"active"},
-  {id:2,name:"Trevor Elliott",email:"hello@trevorelliottmbe.co.uk",role:"manager",password:"Trevor2025",homeId:1,subscription:"active"},
+  {id:1,name:"Trevor Elliott"},
+  {id:2,name:"Trevor Elliott"},
 ];
 function loadUsers(){
   try{
@@ -2846,23 +2850,6 @@ function SignInModal({onLogin,onClose}){
   const [forgotSent,setForgotSent]=useState(false);
 
   const [selectedRole,setSelectedRole]=useState("");
-  const [loginFailed,setLoginFailed]=useState(false);
-
-  // Load child accounts from localStorage
-  const storedChildren=(() => {
-    try { const s=localStorage.getItem("mssf_children"); return s?JSON.parse(s):[]; } catch(e){return [];}
-  })();
-  const childAccounts=storedChildren.filter(c=>c.childEmail&&c.childPassword).map(c=>({
-    id:c.id+"_child", name:c.preferredName, email:c.childEmail, password:c.childPassword,
-    role:"child", homeId:c.homeId||1, childId:c.id, subscription:"active"
-  }));
-  const storedAllUsers=loadUsers();
-  const allAccounts=[...storedAllUsers,...childAccounts];
-  const matchingUsers=allAccounts.filter((u)=>u.email.toLowerCase()===email.toLowerCase()&&u.password===pass);
-  const isTrevor=email.toLowerCase().includes("trevorelliottmbe")&&pass==="Trevor2025";
-  const multipleRoles=matchingUsers.length>1||isTrevor;
-  const trevorRoles=[{role:"admin"},{role:"manager"}];
-  const displayRoles=isTrevor?trevorRoles:matchingUsers;
 
   const handle=async()=>{
     try {
@@ -2933,19 +2920,6 @@ function SignInModal({onLogin,onClose}){
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <FInput label="Email" value={email} onChange={setEmail} type="email" placeholder="your@email.org"/>
                 <FInput label="Password" value={pass} onChange={setPass} type="password" placeholder="••••••••"/>
-                {loginFailed&&multipleRoles&&(
-                  <div>
-                    <label style={{fontSize:12,fontWeight:600,color:"#7A6E62",textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Sign in as</label>
-                    <div style={{display:"flex",gap:8}}>
-                      {(isTrevor?trevorRoles:matchingUsers).map(u=>(
-                        <button key={u.role} onClick={()=>setSelectedRole(u.role)}
-                          style={{flex:1,padding:"9px 12px",borderRadius:8,border:"2px solid "+(selectedRole===u.role?"#1A6B6B":"#DDD3C0"),background:selectedRole===u.role?"#EFF8F7":"#F8F5F0",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:selectedRole===u.role?700:500,color:selectedRole===u.role?"#1A6B6B":"#7A6E62",transition:"all 0.18s",textTransform:"capitalize"}}>
-                          {u.role==="admin"?"🏛 Admin":u.role==="manager"?"👔 Manager":u.role==="staff"?"👤 Staff":u.role==="social_worker"?"🧑‍⚖️ Social Worker":u.role==="child"?"📖 Child":"👤 "+u.role}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 {err&&<p style={{color:"#B5464A",fontSize:13,background:"#FFF0EF",padding:"8px 12px",borderRadius:8}}>{err}</p>}
                 <Btn onClick={handle} style={{width:"100%",justifyContent:"center",padding:"11px"}}>Sign In →</Btn>
               </div>
