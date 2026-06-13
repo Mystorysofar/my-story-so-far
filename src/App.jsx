@@ -1267,7 +1267,7 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
 }
 
 // ── Approvals ─────────────────────────────────────────────────────────────────
-function ApprovalsPage({user,children,chapters,setChapters}){
+function ApprovalsPage({user,children,chapters,setChapters,allUsers=[]}){
   const pending=chapters.filter((c)=>c.status==="pending");
   const approved=chapters.filter((c)=>c.status==="approved");
   const changesRequested=chapters.filter((c)=>c.status==="changes_requested");
@@ -1303,7 +1303,7 @@ function ApprovalsPage({user,children,chapters,setChapters}){
 
   const ChapterCard=({ch,showPublish})=>{
     const child=children.find((c)=>c.id===ch.childId);
-    const author=USERS.find((u)=>u.id===ch.staffId);
+    const author=allUsers.find((u)=>u.id===ch.staffId);
     const isEditing=editingId===ch.id;
     return(
       <Card style={{marginBottom:18,borderLeft:"4px solid "+(ch.status==="published"?"#1A6B6B":ch.status==="approved"?"#2D7D6B":"#C8860A")}}>
@@ -3223,7 +3223,7 @@ export default function App(){
     </>
   );
 
-  const p={user,children,setChildren,chapters,setChapters,activeChild,setActiveChild,setPage,homes,setHomes};
+  const p={user,children,setChildren,chapters,setChapters,activeChild,setActiveChild,setPage,homes,setHomes,allUsers};
 
   // A social worker must never see the generic dashboard (it can briefly show on
   // refresh / right after setting a password, before role routing settles). Force
