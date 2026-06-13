@@ -746,7 +746,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
   const saveEntry=async()=>{
     if(!result||!selectedChild) return;
     const isoDate=reportMonth?new Date(reportMonth+'-01').toISOString():result.reportDate?new Date(result.reportDate).toISOString():new Date().toISOString();
-    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights:result.staffInsights||"",child_progress:result.childProgress||""};
+    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights:result.staffInsights||"",child_progress: typeof result.childProgress==="object" && result.childProgress ? JSON.stringify(result.childProgress) : (result.childProgress||"")};
     const {data,error}=await supabase.from('chapters').insert(row).select().single();
     if(error){
       console.warn('chapter save failed, falling back to local',error.message);
@@ -804,7 +804,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
         id:c.id,childId:c.child_id,title:c.title,content:c.content||"",date:c.date,
         status:c.status||"pending",reportType:c.report_type||"monthly",
         staffId:c.staff_id,managerId:c.manager_id,
-        staffInsights:c.staff_insights||"",childProgress:c.child_progress||"",
+        staffInsights:c.staff_insights||"",childProgress:parseProgress(c.child_progress),
         sourceText:c.source_text||"",sourceFilename:c.source_filename||"",
         feedbackNote:c.feedback_note||"",feedbackAt:c.feedback_at||null,
         created:c.created_at,
@@ -3104,7 +3104,7 @@ export default function App(){
           staffId:c.staff_id,
           managerId:c.manager_id,
           staffInsights:c.staff_insights||"",
-          childProgress:c.child_progress||"",
+          childProgress:parseProgress(c.child_progress),
           sourceText:c.source_text||"",
           sourceFilename:c.source_filename||"",
           feedbackNote:c.feedback_note||"",
