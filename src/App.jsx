@@ -2889,19 +2889,13 @@ function SignInModal({onLogin,onClose}){
         });
         return;
       }
-    } catch(e) {}
-    setLoginFailed(true);
-    // Direct match for Trevor — hardcoded fallback
-    if(email.toLowerCase().includes("trevorelliottmbe")&&pass==="Trevor2025"){
-      if(!selectedRole){setErr("Please select a role — Admin or Manager.");return;}
-      onLogin({id:selectedRole==="admin"?1:2,name:"Trevor Elliott",email:"hello@trevorelliottmbe.co.uk",role:selectedRole,password:"Trevor2025",homeId:1,subscription:"active"});
+      // Supabase returned no user and no thrown error
+      setErr(r.error?.message || "Invalid email or password. Check caps lock is off.");
+      return;
+    } catch(e) {
+      setErr("Invalid email or password. Check caps lock is off.");
       return;
     }
-    const matches=allAccounts.filter((u)=>u.email.toLowerCase()===email.toLowerCase()&&u.password===pass);
-    if(matches.length===0){setErr("Invalid email or password. Check caps lock is off.");return;}
-    if(matches.length>1&&!selectedRole){setErr("Please select which role you want to sign in as.");return;}
-    const u=selectedRole?matches.find(m=>m.role===selectedRole):matches[0];
-    if(u) onLogin(u); else setErr("Invalid email or password.");
   };
 
   if(submitted) return(
