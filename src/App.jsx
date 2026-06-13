@@ -2101,7 +2101,7 @@ function AdminDashboard({homes,users,chapters,children=[]}){
   );
 }
 
-function AdminHomes({homes,setHomes}){
+function AdminHomes({homes,setHomes,children=[]}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",contact:"",plan:"starter"});
   const [editingId,setEditingId]=useState(null);
@@ -2170,7 +2170,7 @@ function AdminHomes({homes,setHomes}){
               <td style={{padding:12,fontWeight:600}}>{h.name}</td>
               <td style={{padding:12,color:"#7A6E62",fontSize:13}}>{h.contact}</td>
               <td style={{padding:12}}><Badge label={h.plan} color="staff"/></td>
-              <td style={{padding:12,color:"#7A6E62"}}>{h.childCount}</td>
+              <td style={{padding:12,color:"#7A6E62"}}>{children.filter(c=>String(c.homeId)===String(h.id)&&!c.archived).length}</td>
               <td style={{padding:12}}><Badge label={h.status} color={h.status}/></td>
               <td style={{padding:12,display:"flex",gap:6}}>
                 <Btn size="sm" variant="ghost" onClick={()=>startEdit(h)}>Edit</Btn>
@@ -3252,7 +3252,7 @@ export default function App(){
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
           {effPage==="sw-stories"    &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters} children={children}/>}
-          {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes}/>}
+          {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes} children={children}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
         </main>
