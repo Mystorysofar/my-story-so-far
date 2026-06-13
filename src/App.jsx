@@ -349,7 +349,7 @@ async function generateBulkChapters(reports, child){
 const NAV_BY_ROLE = {
   staff:  ["dashboard","children","new-chapter","chapters","approvals","admin-users"],
   manager:["dashboard","children","new-chapter","chapters","approvals","admin-users"],
-  admin:  ["admin-dashboard","admin-homes","admin-users","admin-settings","children","new-chapter","chapters","approvals"],
+  admin:  ["admin-dashboard","children","new-chapter","chapters","approvals","admin-homes","admin-users","admin-settings"],
   child:  ["my-story","my-progress"],
   social_worker: ["sw-stories"],
 };
