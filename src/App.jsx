@@ -2091,7 +2091,7 @@ function AdminDashboard({homes,users,chapters,children=[]}){
           <h3 style={{fontSize:15,marginBottom:14}}>🏡 Registered Homes</h3>
           {homes.map((h)=>(
             <div key={h.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #EFE9DE"}}>
-              <div><span style={{fontWeight:600}}>{h.name}</span><span style={{color:"#7A6E62",fontSize:13,marginLeft:8}}>· {children.filter(c=>String(c.homeId)===String(h.id)&&!c.archived).length} children</span></div>
+              <div><span style={{fontWeight:600}}>{h.name}</span><span style={{color:"#7A6E62",fontSize:13,marginLeft:8}}>· {(()=>{const n=children.filter(c=>String(c.homeId)===String(h.id)&&!c.archived).length;return n+" "+(n===1?"child":"children");})()}</span></div>
               <div style={{display:"flex",gap:10,alignItems:"center"}}><Badge label={h.status} color={h.status}/><Badge label={h.plan} color="staff"/></div>
             </div>
           ))}
