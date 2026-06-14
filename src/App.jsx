@@ -940,8 +940,8 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
                   {result.staffInsights.trendAnalysis&&(
                     <div style={{marginTop:12,padding:"12px 14px",background:"#F0F0FA",borderRadius:8,border:"1px solid #D0D0EA"}}>
                       <p style={{fontSize:12,fontWeight:700,color:"#5B5EA6",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>📊 Trend Analysis</p>
-                      {result.staffInsights.trendAnalysis.flags.map((f,i)=><div key={i} style={{fontSize:13,color:"#1A1612",marginBottom:4}}>• {f}</div>)}
-                      {result.staffInsights.trendAnalysis.insights.map((ins,i)=>(
+                      {(result.staffInsights.trendAnalysis.flags||[]).map((f,i)=><div key={i} style={{fontSize:13,color:"#1A1612",marginBottom:4}}>• {f}</div>)}
+                      {(result.staffInsights.trendAnalysis.insights||[]).map((ins,i)=>(
                         <div key={i} style={{fontSize:13,color:"#5B5EA6",marginTop:6,fontStyle:"italic"}}>→ {ins}</div>
                       ))}
                       <div style={{marginTop:10,padding:"8px 10px",background:"rgba(91,94,166,0.08)",borderRadius:6,fontSize:11,color:"#5B5EA6",lineHeight:1.5}}>
@@ -1261,8 +1261,8 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
               {ch.staffInsights.trendAnalysis&&(
                 <div style={{marginTop:10,padding:"10px 14px",background:"#F0F0FA",borderRadius:8,border:"1px solid #D0D0EA"}}>
                   <p style={{fontSize:12,fontWeight:700,color:"#5B5EA6",marginBottom:8}}>📊 Trend Flags</p>
-                  {ch.staffInsights.trendAnalysis.flags.map((f,i)=><div key={i} style={{fontSize:13,marginBottom:4}}>• {f}</div>)}
-                  {ch.staffInsights.trendAnalysis.insights.map((ins,i)=><div key={i} style={{fontSize:13,color:"#5B5EA6",fontStyle:"italic",marginTop:4}}>→ {ins}</div>)}
+                  {(ch.staffInsights.trendAnalysis.flags||[]).map((f,i)=><div key={i} style={{fontSize:13,marginBottom:4}}>• {f}</div>)}
+                  {(ch.staffInsights.trendAnalysis.insights||[]).map((ins,i)=><div key={i} style={{fontSize:13,color:"#5B5EA6",fontStyle:"italic",marginTop:4}}>→ {ins}</div>)}
                   <div style={{marginTop:8,fontSize:11,color:"#5B5EA6",padding:"6px 8px",background:"rgba(91,94,166,0.08)",borderRadius:5,lineHeight:1.5}}>⚠️ AI-generated observations for trained professionals only. Not clinical advice.</div>
                 </div>
               )}
