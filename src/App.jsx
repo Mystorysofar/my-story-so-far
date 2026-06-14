@@ -2073,7 +2073,7 @@ function ChildProgressPage({user,chapters,children}){
 }
 
 // ── Admin Panel ───────────────────────────────────────────────────────────────
-function AdminDashboard({homes,users,chapters,children=[]}){
+function AdminDashboard({homes,users,chapters,children=[],loading=false}){
   const stats=[
     {label:"Care Homes",value:homes.length,icon:"🏡",color:"#1A6B6B"},
     {label:"Total Users",value:users.length,icon:"👥",color:"#5B5EA6"},
@@ -2084,7 +2084,7 @@ function AdminDashboard({homes,users,chapters,children=[]}){
     <div>
       <div className="fu"><PageHeader title="Platform Overview" subtitle="My Story So Far — admin dashboard"/></div>
       <div className="fu1" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14,marginBottom:24}}>
-        {stats.map((s)=><Card key={s.label} style={{display:"flex",alignItems:"center",gap:14}}><div style={{fontSize:26}}>{s.icon}</div><div><div style={{fontSize:28,fontWeight:700,color:s.color,fontFamily:"'Fraunces',serif"}}>{s.value}</div><div style={{fontSize:12,color:"#7A6E62"}}>{s.label}</div></div></Card>)}
+        {stats.map((s)=><Card key={s.label} style={{display:"flex",alignItems:"center",gap:14}}><div style={{fontSize:26}}>{s.icon}</div><div><div style={{fontSize:28,fontWeight:700,color:s.color,fontFamily:"'Fraunces',serif"}}>{loading?"—":s.value}</div><div style={{fontSize:12,color:"#7A6E62"}}>{s.label}</div></div></Card>)}
       </div>
       <div className="fu2">
         <Card>
@@ -3037,6 +3037,9 @@ export default function App(){
     try{const s=localStorage.getItem("mssf_homes");return s?JSON.parse(s):[{id:1,name:"My Care Home",contact:"",plan:"home",status:"active",childCount:0,created:new Date().toISOString()}];}catch(e){return [{id:1,name:"My Care Home",contact:"",plan:"home",status:"active",childCount:0,created:new Date().toISOString()}];}
   });
   const [allUsers,setAllUsers]=useState([]);
+  const [bootLoading,setBootLoading]=useState(true);
+  useEffect(()=>{ if(allUsers.length>0||chapters.length>0||children.length>0){ setBootLoading(false); } },[allUsers,chapters,children]);
+  useEffect(()=>{ const t=setTimeout(()=>setBootLoading(false),4000); return ()=>clearTimeout(t); },[]);
   // Load users from Supabase profiles on mount, translating snake_case → camelCase
   useEffect(()=>{
     supabase.from('profiles').select('*').order('name').then(({data,error})=>{
@@ -3251,7 +3254,7 @@ export default function App(){
           {page==="my-story"         &&<ChildStoryPage    user={user} chapters={chapters} children={children}/>}
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
           {effPage==="sw-stories"    &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
-          {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters} children={children}/>}
+          {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters} children={children} loading={bootLoading}/>}
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes} children={children}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
