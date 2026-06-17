@@ -812,7 +812,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       console.warn('chapter save failed, falling back to local',error.message);
       setChapters((p)=>[...p,{id:Date.now(),childId:selectedChild.id,title:result.chapter.title,date:isoDate,status:"pending",content:result.chapter.content,reportType:"monthly",staffId:user.id,managerId:null,staffInsights:result.staffInsights,childProgress:result.childProgress}]);
     }else{
-      setChapters((p)=>[...p,{id:data.id,childId:data.child_id,title:data.title,content:data.content||"",date:data.date,status:data.status||"pending",reportType:data.report_type||"monthly",staffId:data.staff_id,managerId:data.manager_id,staffInsights:parseInsights(data.staff_insights),childProgress:parseProgress(data.child_progress),sourceText:data.source_text||"",sourceFilename:data.source_filename||"",created:data.created_at}]);
+      setChapters((p)=>[...p,{id:data.id,childId:data.child_id,title:data.title,content:data.content||"",date:data.date,status:data.status||"pending",reportType:data.report_type||"monthly",staffId:data.staff_id,managerId:data.manager_id,staffInsights:parseInsights(data.staff_insights),childProgress:parseProgress(data.child_progress),childVoice:data.child_voice||"",sourceText:data.source_text||"",sourceFilename:data.source_filename||"",created:data.created_at}]);
     }
     setSaved(true);
   };
@@ -856,7 +856,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       const fallback=rows.map((row,i)=>({
         id:Date.now()+i,childId:row.child_id,title:row.title,content:row.content,date:row.date,
         status:row.status,reportType:row.report_type,staffId:row.staff_id,managerId:row.manager_id,
-        staffInsights:parseInsights(row.staff_insights),childProgress:parseProgress(row.child_progress),
+        staffInsights:parseInsights(row.staff_insights),childProgress:parseProgress(row.child_progress),childVoice:row.child_voice||"",
       }));
       setChapters((p)=>[...p,...fallback]);
     }else{
@@ -864,7 +864,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
         id:c.id,childId:c.child_id,title:c.title,content:c.content||"",date:c.date,
         status:c.status||"pending",reportType:c.report_type||"monthly",
         staffId:c.staff_id,managerId:c.manager_id,
-        staffInsights:parseInsights(c.staff_insights),childProgress:parseProgress(c.child_progress),
+        staffInsights:parseInsights(c.staff_insights),childProgress:parseProgress(c.child_progress),childVoice:c.child_voice||"",
         sourceText:c.source_text||"",sourceFilename:c.source_filename||"",
         feedbackNote:c.feedback_note||"",feedbackAt:c.feedback_at||null,
         created:c.created_at,
@@ -1952,6 +1952,27 @@ function ChildStoryPage({user,chapters,children}){
 
   const getContent=(ch)=>rewrittenChapters[ch.id+"_"+selectedStyle]||ch;
 
+  // Child's voice: local edit buffers + saving state, keyed by chapter id.
+  const [voiceDrafts,setVoiceDrafts]=useState({});
+  const [voiceSaving,setVoiceSaving]=useState(null);
+  const [voiceSaved,setVoiceSaved]=useState(null);
+  const [voiceEditing,setVoiceEditing]=useState({});
+  const saveVoice=async(ch)=>{
+    const text=(voiceDrafts[ch.id]!==undefined?voiceDrafts[ch.id]:(ch.childVoice||""));
+    setVoiceSaving(ch.id); setVoiceSaved(null);
+    try{
+      const {error}=await supabase.from('chapters').update({child_voice:text}).eq('id',ch.id);
+      if(error){ alert("Could not save your voice: "+error.message); }
+      else{
+        ch.childVoice=text;               // reflect immediately in this view
+        setVoiceSaved(ch.id);
+        setVoiceEditing((m)=>({...m,[ch.id]:false}));
+        setTimeout(()=>setVoiceSaved(null),2500);
+      }
+    }catch(e){ alert("Could not save your voice: "+e.message); }
+    setVoiceSaving(null);
+  };
+
   const styleConfig={
     personal:{label:"Personal",icon:"💛",desc:"Warm and real — just for you",color:"#C8860A"},
     fictional:{label:"Fictional",icon:"🏰",desc:"Your story as an adventure",color:"#5B5EA6"},
@@ -2062,6 +2083,33 @@ function ChildStoryPage({user,chapters,children}){
                             ✨ Rewrite as {style.label}
                           </button>
                         </div>
+                      </div>
+
+                      {/* ✍️ The child's own voice — only they can write this */}
+                      <div style={{padding:"24px 48px 32px",background:"#FFF9F0",borderTop:"2px dashed #F0D898"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                          <span style={{fontSize:18}}>✍️</span>
+                          <h4 style={{fontFamily:"'Georgia',serif",fontSize:16,color:"#1A1612",margin:0}}>{name}'s voice</h4>
+                        </div>
+                        {(ch.childVoice && !voiceEditing[ch.id])?(
+                          <div>
+                            <p style={{fontFamily:"'Georgia',serif",fontSize:15,lineHeight:1.8,color:"#3A332C",fontStyle:"italic",whiteSpace:"pre-wrap",marginBottom:12}}>"{ch.childVoice}"</p>
+                            <button onClick={()=>{setVoiceEditing((m)=>({...m,[ch.id]:true}));setVoiceDrafts((d)=>({...d,[ch.id]:ch.childVoice||""}));}} style={{padding:"7px 16px",borderRadius:8,border:"1px solid #C8860A",background:"#fff",color:"#C8860A",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit my voice</button>
+                          </div>
+                        ):(
+                          <div>
+                            <p style={{fontSize:13,color:"#7A6E62",marginBottom:10}}>This is your space. What do you remember about this time? How does reading this make you feel? Only you can write here.</p>
+                            <textarea
+                              value={voiceDrafts[ch.id]!==undefined?voiceDrafts[ch.id]:(ch.childVoice||"")}
+                              onChange={(e)=>setVoiceDrafts((d)=>({...d,[ch.id]:e.target.value}))}
+                              placeholder="Write your own words here..."
+                              style={{width:"100%",minHeight:90,padding:"12px 14px",borderRadius:10,border:"1px solid #E3D6BD",background:"#fff",fontSize:15,fontFamily:"'Georgia',serif",lineHeight:1.7,color:"#2A2420",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+                            <div style={{display:"flex",alignItems:"center",gap:12,marginTop:10}}>
+                              <button onClick={()=>saveVoice(ch)} disabled={voiceSaving===ch.id} style={{padding:"9px 20px",borderRadius:8,border:"none",background:"#1A6B6B",color:"#fff",fontSize:13,fontWeight:600,cursor:voiceSaving===ch.id?"default":"pointer",fontFamily:"inherit",opacity:voiceSaving===ch.id?0.7:1}}>{voiceSaving===ch.id?"Saving...":"💾 Save my voice"}</button>
+                              {voiceSaved===ch.id&&<span style={{fontSize:13,color:"#2D7D6B",fontWeight:600}}>✓ Saved</span>}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -3155,6 +3203,7 @@ export default function App(){
           managerId:c.manager_id,
           staffInsights:parseInsights(c.staff_insights),
           childProgress:parseProgress(c.child_progress),
+          childVoice:c.child_voice||"",
           sourceText:c.source_text||"",
           sourceFilename:c.source_filename||"",
           feedbackNote:c.feedback_note||"",
