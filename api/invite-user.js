@@ -40,8 +40,10 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'No profile found for caller' });
     }
 
-    // child_id is optional; only used when inviting/assigning a social worker.
-    const { name, email, role, home_id, child_id } = req.body || {};
+    // child_id is optional; used when inviting/assigning a social worker,
+    // and when creating a child login (so the child's profile links to their record).
+    // password is optional; only used for the child-login create path.
+    const { name, email, role, home_id, child_id, password } = req.body || {};
     if (!name || !email || !role) {
       return res.status(400).json({ error: 'Missing required fields: name, email, role' });
     }
@@ -94,6 +96,66 @@ export default async function handler(req, res) {
     const allowedRoles = ['admin', 'manager', 'staff', 'child', 'social_worker'];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ error: 'Invalid role.' });
+    }
+
+    // ── Child login: create an account with a PRESET password and NO email. ──
+    // Children don't receive an invite email — the adult sets the password and
+    // hands it over. The child's "email" is a unique username-style identifier
+    // (not a real mailbox), so we confirm it immediately. The profile is written
+    // with child_id so the portal can match user.childId -> their story.
+    if (role === 'child') {
+      if (!password) {
+        return res.status(400).json({ error: 'A password is required to create a child login.' });
+      }
+      if (!child_id) {
+        return res.status(400).json({ error: 'A child record must be selected to create a child login.' });
+      }
+
+      // Verify the child record exists and sits in the right home.
+      const { data: childRow, error: childErr } = await admin
+        .from('children')
+        .select('id, home_id')
+        .eq('id', child_id)
+        .single();
+      if (childErr || !childRow) {
+        return res.status(400).json({ error: 'Child record not found.' });
+      }
+      // Non-admins can only create a login for a child in their own home.
+      if (callerRole !== 'admin') {
+        if (!callerHome || childRow.home_id !== callerHome) {
+          return res.status(403).json({ error: 'You can only create a login for a child in your own home.' });
+        }
+      }
+
+      // Create the auth account with the preset password, pre-confirmed, no email.
+      const { data: created, error: createErr } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name, role: 'child', home_id: childRow.home_id, child_id },
+      });
+      if (createErr) {
+        // Friendly message for the most common case: identifier already taken.
+        if (/already.*registered|already.*exists|duplicate/i.test(createErr.message)) {
+          return res.status(409).json({ error: 'That login email is already in use. Pick a different one (each child needs a unique login).' });
+        }
+        return res.status(400).json({ error: createErr.message });
+      }
+      const childUserId = created?.user?.id;
+      if (!childUserId) {
+        return res.status(500).json({ error: 'Account creation returned no user id.' });
+      }
+
+      // Write the profile row, linking the login to the child's story record.
+      const { error: profErr } = await admin.from('profiles').upsert(
+        { id: childUserId, email, name, role: 'child', home_id: childRow.home_id, child_id },
+        { onConflict: 'id' }
+      );
+      if (profErr) {
+        return res.status(500).json({ error: 'Login created but profile link failed: ' + profErr.message });
+      }
+
+      return res.status(200).json({ ok: true, user_id: childUserId });
     }
 
     // Social worker with a child: reuse-or-invite, then link.

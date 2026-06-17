@@ -509,8 +509,8 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
       console.warn('children insert failed, falling back to local',error.message);
       setChildren((p)=>[...p,{...form,id:Date.now(),homeId:targetHomeId}]);
     } else if(data){
-      // Use the Supabase-returned row (with real UUID and timestamps),
-      // plus keep childEmail/childPassword in local state only (Session 5 will move these properly)
+      // Use the Supabase-returned row (with real UUID and timestamps).
+      // NOTE: we intentionally do NOT keep the child's password in app state.
       setChildren((p)=>[...p,{
         id:data.id,
         homeId:data.home_id,
@@ -521,8 +521,40 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
         archived:!!data.archived,
         created:data.created_at,
         childEmail:form.childEmail||"",
-        childPassword:form.childPassword||"",
       }]);
+
+      // If a portal login was filled in, create the child's auth account via the
+      // server route (creates account with the preset password, no email, and
+      // links the profile to this child record via child_id). Login is OPTIONAL —
+      // a blank email/password just creates the child record with no login.
+      if(form.childEmail && form.childPassword){
+        try{
+          const { data:{session} } = await supabase.auth.getSession();
+          if(!session){ alert("Child saved, but your session expired so the login wasn't created. Sign in again and add the login from the child's record."); }
+          else{
+            const res = await fetch("/api/invite-user",{
+              method:"POST",
+              headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${session.access_token}` },
+              body: JSON.stringify({
+                name: data.preferred_name,
+                email: form.childEmail,
+                role: "child",
+                home_id: data.home_id,
+                child_id: data.id,
+                password: form.childPassword,
+              }),
+            });
+            const out = await res.json().catch(()=>({}));
+            if(!res.ok){
+              alert(`Child saved, but the login could NOT be created: ${out.error || res.statusText}\n\nThe child profile exists. Fix the issue and you can add their login again.`);
+            } else {
+              alert(`Child added and login created.\n\nLogin: ${form.childEmail}\nPassword: ${form.childPassword}\n\nWrite these down and give them to the child directly — the password is not stored.`);
+            }
+          }
+        }catch(e){
+          alert(`Child saved, but creating the login hit a network error: ${e.message}`);
+        }
+      }
     }
     setForm({preferredName:"",dob:"",gender:"",notes:"",childEmail:"",childPassword:"",homeId:""});
     setExtracted(false);
@@ -618,7 +650,7 @@ DOCUMENT: ${text.slice(0,3000)}`;
                           style={{flex:1,padding:"9px 13px",borderRadius:8,border:"1px solid #DDD3C0",background:"#F8F5F0",fontSize:14,color:"#1A1612",outline:"none"}}/>
                         <button onClick={()=>{
                           const words=["Brave","Strong","Kind","Star","Hope","Bright","Calm","Bold"];
-                          const nums=Math.floor(Math.random()*90+10);
+                          const nums=Math.floor(Math.random()*9000+1000); // 4 digits -> word(>=4)+4 = >=8 chars, always has upper/lower/digit
                           setForm(f=>({...f,childPassword:words[Math.floor(Math.random()*words.length)]+nums}));
                         }} style={{padding:"9px 12px",borderRadius:8,border:"1px solid #DDD3C0",background:"#EFE9DE",cursor:"pointer",fontSize:12,fontWeight:600,color:"#7A6E62",fontFamily:"inherit",whiteSpace:"nowrap"}}>🎲 Generate</button>
                       </div>
