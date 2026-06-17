@@ -2898,7 +2898,7 @@ function SignInModal({onLogin,onClose}){
         // Load profile row for this user — has role and home_id
         const {data:profile,error:profileError}=await supabase
           .from('profiles')
-          .select('id,name,role,home_id,subscription')
+          .select('id,name,role,home_id,subscription,child_id')
           .eq('id',r.data.user.id)
           .single();
         if(profileError||!profile){
@@ -2912,6 +2912,7 @@ function SignInModal({onLogin,onClose}){
           email:r.data.user.email,
           role:profile.role||'staff',
           homeId:profile.home_id,
+          childId:profile.child_id,
           subscription:profile.subscription||'active',
         });
         return;
@@ -3172,7 +3173,7 @@ export default function App(){
       if(!session||!session.user){ setAuthLoading(false); return; }
       const {data:profile,error:profileError}=await supabase
         .from('profiles')
-        .select('id,name,role,home_id,subscription')
+        .select('id,name,role,home_id,subscription,child_id')
         .eq('id',session.user.id)
         .single();
       if(cancelled) return;
@@ -3196,6 +3197,7 @@ export default function App(){
         email:session.user.email,
         role:profile.role||'staff',
         homeId:profile.home_id,
+        childId:profile.child_id,
         subscription:profile.subscription||'active',
       });
       hasHydratedRef.current=true;
