@@ -288,7 +288,7 @@ Return ONLY valid JSON, no markdown fences:
   "reportDate": "The month and year this report covers in YYYY-MM-DD format (use the 1st of the month) — read this from the report title or content, do NOT use today's date",
   "chapter": {
     "title": "Warm chapter title (4-6 words)",
-    "content": "2-4 paragraphs written in THIRD PERSON as a warm life story book chapter about the child, using their name naturally throughout (e.g. \'This month, TE showed the kind of quiet courage that deserves to be remembered.\'). Written like a novel chapter — engaging, celebratory, narrative storytelling. Warm, age-appropriate, trauma-informed. Highlight strengths, growth, positive moments. End with a hopeful forward-looking sentence. NO second person (no \'you\' or \'your\'). NO clinical language, NO incidents, NO blame, NO risk language."
+    "content": "2-4 paragraphs written in SECOND PERSON, speaking warmly and directly TO the child using \'you\' and \'your\' throughout (e.g. \'This month, you showed the kind of quiet courage that deserves to be remembered.\'). Like a trusted adult telling the child their own story. Written like a warm novel chapter — engaging, celebratory, narrative storytelling. Warm, age-appropriate, trauma-informed. Highlight strengths, growth, positive moments. End with a hopeful forward-looking sentence addressed to them. NO third-person narration (do not refer to the child by name in the third person). NO clinical language, NO incidents, NO blame, NO risk language."
   },
   "staffInsights": {
     "overview": "2-3 sentence professional summary for staff records",
@@ -317,7 +317,7 @@ ${reportText}`;
 
 async function rewriteInStyle(chapter, style, child){
   const styleGuides = {
-    fictional:`Transform this into a SECOND PERSON fictional adventure story where the child is the hero. Use "you" throughout — e.g. "You stepped forward, brave as any knight". Magical, adventurous framing of their real experiences. Age-appropriate for ${calcAgeBand(child.dob)}.`,
+    fictional:`Transform this into a THIRD PERSON fictional adventure story where the child is the hero, told like a classic storybook. Use the child\'s name as the hero — e.g. "${child.preferredName} stepped forward, brave as any knight". Magical, adventurous framing of their real experiences. Age-appropriate for ${calcAgeBand(child.dob)}.`,
     motivational:`Rewrite this as a powerful motivational piece written TO the child. Focus on their wins, strength, resilience. Energetic and empowering tone. Age-appropriate for age band ${calcAgeBand(child.dob)}.`,
     emotional:`Rewrite this in SECOND PERSON as a gentle, heartfelt, emotionally resonant piece speaking directly to the child. Use "you" — e.g. "This month, you carried something quietly — and you did it with so much grace." Tender, validating. Age-appropriate for ${calcAgeBand(child.dob)}.`,
     personal:`Keep this as a warm SECOND PERSON narrative speaking directly to the child. Use "you" throughout — direct, real, supportive, like a trusted adult speaking to them. Age-appropriate for ${calcAgeBand(child.dob)}.`,
