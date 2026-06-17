@@ -1236,6 +1236,12 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
                         <div style={{fontFamily:"'Fraunces',serif",fontSize:15,lineHeight:1.9,color:"#1A1612",padding:16,background:"#EFE9DE",borderRadius:10,borderLeft:"3px solid #1A6B6B",marginBottom:10}}>
                           {ch.content.split("\n").filter(Boolean).map((p,pi)=><p key={pi} style={{marginBottom:10}}>{p}</p>)}
                         </div>
+                        {ch.childVoice&&(
+                          <div style={{marginBottom:10,padding:"14px 16px",background:"#FFF9F0",borderRadius:10,borderLeft:"3px solid #C8860A"}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"#C8860A",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>✍️ In the child's own words</div>
+                            <p style={{fontFamily:"'Fraunces',serif",fontSize:15,lineHeight:1.8,color:"#3A332C",fontStyle:"italic",whiteSpace:"pre-wrap"}}>"{ch.childVoice}"</p>
+                          </div>
+                        )}
                         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                           <Btn size="sm" variant="ghost" onClick={(e)=>{e.stopPropagation();
                             const blob=new Blob([ch.title+"\n"+fmtDate(ch.date)+"\n\n"+ch.content],{type:"text/plain"});
