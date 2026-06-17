@@ -472,7 +472,7 @@ function Dashboard({user,children,chapters,setPage}){
 }
 
 // ── Children Page ─────────────────────────────────────────────────────────────
-function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild,homes}){
+function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild,homes,allUsers=[]}){
   const [swPanelChild,setSwPanelChild]=useState(null); // child whose social-workers panel is open
   const [showForm,setShowForm]=useState(false);
   const [showArchived,setShowArchived]=useState(false);
@@ -713,6 +713,30 @@ DOCUMENT: ${text.slice(0,3000)}`;
                 {cc.length>0&&<Btn size="sm" variant="secondary" onClick={()=>{setActiveChild(child);setPage("chapters");}}>📖 View Story</Btn>}
                 <Btn size="sm" onClick={()=>{setActiveChild(child);setPage("new-chapter");}}>✍️ {cc.length===0?"Start Story":"Add Report"}</Btn>
                 {(user?.role==="manager"||user?.role==="admin")&&<Btn size="sm" variant="ghost" onClick={()=>setSwPanelChild(child)}>🧑‍⚖️ Social workers</Btn>}
+                {(user?.role==="manager"||user?.role==="admin")&&(
+                  (allUsers||[]).some(u=>u.role==="child"&&String(u.childId)===String(child.id))
+                    ? <span style={{fontSize:12,color:"#2D7D6B",fontWeight:600,padding:"0 4px"}}>🔑 Has login</span>
+                    : <Btn size="sm" variant="ghost" onClick={async()=>{
+                        const suggested=(child.preferredName||"child").toLowerCase().replace(/[^a-z0-9]/g,"")+"@thevale.local";
+                        const email=window.prompt("Login email for "+(child.preferredName||"this child")+" (a unique username — does not need to be a real mailbox):", suggested);
+                        if(!email) return;
+                        const words=["Brave","Strong","Kind","Star","Hope","Bright","Calm","Bold"];
+                        const pw=words[Math.floor(Math.random()*words.length)]+Math.floor(Math.random()*9000+1000);
+                        try{
+                          const { data:{session} } = await supabase.auth.getSession();
+                          if(!session){ alert("Your session has expired. Please sign in again."); return; }
+                          const res=await fetch("/api/invite-user",{
+                            method:"POST",
+                            headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${session.access_token}` },
+                            body: JSON.stringify({ name: child.preferredName||"Child", email, role:"child", home_id: child.homeId, child_id: child.id, password: pw }),
+                          });
+                          const out=await res.json().catch(()=>({}));
+                          if(!res.ok){ alert(`Could not create login: ${out.error || res.statusText}`); return; }
+                          alert(`Login created for ${child.preferredName||"this child"}.\n\nLogin: ${email}\nPassword: ${pw}\n\nWrite these down and give them to the child directly — the password is not stored.`);
+                          window.location.reload();
+                        }catch(e){ alert(`Network error: ${e.message}`); }
+                      }}>🔑 Add login</Btn>
+                )}
                 <button onClick={async()=>{
                   const newArchived=!child.archived;
                   setChildren((p)=>p.map((c)=>c.id===child.id?{...c,archived:newArchived}:c));
