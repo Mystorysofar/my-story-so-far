@@ -1,6 +1,24 @@
 import { supabase } from './supabase';
 import { useState, useRef, useEffect } from "react";
 
+// Audit trail: write one append-only log line. Fire-and-forget — never blocks or
+// breaks the action it records (a logging failure must not stop a real operation).
+async function logAudit(actor, action, target){
+  try{
+    await supabase.from('audit_log').insert({
+      actor_id: actor?.id || null,
+      actor_name: actor?.name || null,
+      actor_role: actor?.role || null,
+      action: action,
+      target_type: target?.type || null,
+      target_id: target?.id != null ? String(target.id) : null,
+      target_name: target?.name || null,
+      home_id: actor?.homeId || null,
+      detail: target?.detail || null,
+    });
+  }catch(e){ console.warn('audit log failed:', e?.message); }
+}
+
 // ── Global Styles ─────────────────────────────────────────────────────────────
 const G = () => (
   <style>{`
@@ -348,8 +366,8 @@ async function generateBulkChapters(reports, child){
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const NAV_BY_ROLE = {
   staff:  ["dashboard","children","new-chapter","chapters","approvals"],
-  manager:["dashboard","children","new-chapter","chapters","approvals","admin-users"],
-  admin:  ["admin-dashboard","children","new-chapter","chapters","approvals","admin-homes","admin-users","admin-settings"],
+  manager:["dashboard","children","new-chapter","chapters","approvals","admin-users","audit-log"],
+  admin:  ["admin-dashboard","children","new-chapter","chapters","approvals","admin-homes","admin-users","audit-log","admin-settings"],
   child:  ["my-story","my-progress"],
   social_worker: ["sw-stories"],
 };
@@ -363,6 +381,7 @@ const NAV_META = {
   "admin-homes":   {icon:"🏡",label:"Care Homes"},
   "admin-users":   {icon:"👥",label:"All Users"},
   "admin-settings":{icon:"⚙️",label:"Platform Settings"},
+  "audit-log":     {icon:"🛡️",label:"Audit Log"},
   "sw-stories":    {icon:"📖",label:"Children's Stories"},
   "my-story":      {icon:"📖",label:"My Story"},
   "my-progress":   {icon:"⭐",label:"My Progress"},
@@ -523,6 +542,8 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
         childEmail:form.childEmail||"",
       }]);
 
+      logAudit(user,"child.created",{type:"child",id:data.id,name:data.preferred_name});
+
       // If a portal login was filled in, create the child's auth account via the
       // server route (creates account with the preset password, no email, and
       // links the profile to this child record via child_id). Login is OPTIONAL —
@@ -548,6 +569,7 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
             if(!res.ok){
               alert(`Child saved, but the login could NOT be created: ${out.error || res.statusText}\n\nThe child profile exists. Fix the issue and you can add their login again.`);
             } else {
+              logAudit(user,"child.login_created",{type:"child",id:data.id,name:data.preferred_name});
               alert(`Child added and login created.\n\nLogin: ${form.childEmail}\nPassword: ${form.childPassword}\n\nWrite these down and give them to the child directly — the password is not stored.`);
             }
           }
@@ -732,6 +754,7 @@ DOCUMENT: ${text.slice(0,3000)}`;
                           });
                           const out=await res.json().catch(()=>({}));
                           if(!res.ok){ alert(`Could not create login: ${out.error || res.statusText}`); return; }
+                          logAudit(user,"child.login_created",{type:"child",id:child.id,name:child.preferredName||"child"});
                           alert(`Login created for ${child.preferredName||"this child"}.\n\nLogin: ${email}\nPassword: ${pw}\n\nWrite these down and give them to the child directly — the password is not stored.`);
                           window.location.reload();
                         }catch(e){ alert(`Network error: ${e.message}`); }
@@ -753,7 +776,7 @@ DOCUMENT: ${text.slice(0,3000)}`;
         })}
       </div>
       {swPanelChild && (
-        <ChildSocialWorkersPanel child={swPanelChild} onClose={()=>setSwPanelChild(null)} />
+        <ChildSocialWorkersPanel child={swPanelChild} onClose={()=>setSwPanelChild(null)} user={user} />
       )}
     </div>
   );
@@ -1249,7 +1272,7 @@ ${i<approved.length-1?"<hr class=\"page-break\">":`}`}
                             a.href=url;a.download=ch.title.replace(/ /g,"-")+".txt";a.click();URL.revokeObjectURL(url);
                           }}>⬇ Download</Btn>
                           {ch.status==="approved"&&(user.role==="admin"||user.role==="manager")&&(
-                            <Btn size="sm" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',ch.id);if(error)console.warn('publish failed',error.message);setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"published"}:c));}} style={{background:"#1A6B6B",color:"#fff"}}>
+                            <Btn size="sm" onClick={async(e)=>{e.stopPropagation();const {error}=await supabase.from('chapters').update({status:"published"}).eq('id',ch.id);if(error){console.warn('publish failed',error.message);}else{logAudit(user,"chapter.published",{type:"chapter",id:ch.id,name:ch.title,detail:"Published to "+(children.find(c=>c.id===ch.childId)?.preferredName||"child")});}setChapters(p=>p.map(c=>c.id===ch.id?{...c,status:"published"}:c));}} style={{background:"#1A6B6B",color:"#fff"}}>
                               📖 Publish to Child
                             </Btn>
                           )}
@@ -1494,7 +1517,7 @@ function ApprovalsPage({user,children,chapters,setChapters,allUsers=[]}){
 // /api/invite-user with child_id — the route does reuse-or-invite then links),
 // and remove one (POST action=remove). All three calls carry the caller's Bearer
 // token; the server verifies entitlement. No direct DB access from here.
-function ChildSocialWorkersPanel({child,onClose}){
+function ChildSocialWorkersPanel({child,onClose,user}){
   const [list,setList]=useState(null);      // null = loading
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
@@ -1544,6 +1567,7 @@ function ChildSocialWorkersPanel({child,onClose}){
       });
       const data=await res.json().catch(()=>({}));
       if(!res.ok){ setErr(data.error||"Could not invite social worker"); setBusy(false); return; }
+      logAudit(user,"sw.invited",{type:"child",id:child.id,name:child.preferredName,detail:"Social worker "+form.email.trim()});
       setNotice(data.reused
         ? `${form.email} already had an account — linked to ${child.preferredName}.`
         : `Invite sent to ${form.email}. They'll get an email to set a password.`);
@@ -1563,6 +1587,7 @@ function ChildSocialWorkersPanel({child,onClose}){
       });
       const data=await res.json().catch(()=>({}));
       if(!res.ok){ setErr(data.error||"Could not remove"); setRemovingId(null); return; }
+      logAudit(user,"sw.removed",{type:"child",id:child.id,name:child.preferredName,detail:"Social worker "+(sw.email||sw.name||sw.id)});
       setList(prev=>(prev||[]).filter(x=>x.id!==sw.id));
     }catch(e){ setErr(e.message); }
     setRemovingId(null);
@@ -3126,6 +3151,87 @@ function SignInModal({onLogin,onClose}){
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────
+function AuditLogPage({user}){
+  const [rows,setRows]=useState(null);
+  const [filter,setFilter]=useState("");
+  const [err,setErr]=useState("");
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const {data,error}=await supabase
+          .from('audit_log')
+          .select('*')
+          .order('created_at',{ascending:false})
+          .limit(500);
+        if(error){ setErr(error.message); setRows([]); }
+        else setRows(data||[]);
+      }catch(e){ setErr(e.message); setRows([]); }
+    })();
+  },[]);
+
+  const labelFor=(a)=>({
+    "child.created":"Child created",
+    "child.login_created":"Child login created",
+    "chapter.published":"Chapter published",
+    "sw.invited":"Social worker invited",
+    "sw.removed":"Social worker removed",
+    "user.created":"User created",
+    "user.deleted":"User deleted",
+  }[a]||a);
+
+  const colorFor=(a)=>{
+    if(a.startsWith("chapter"))return "#1A6B6B";
+    if(a.startsWith("sw"))return "#5B5EA6";
+    if(a.startsWith("child"))return "#C8860A";
+    if(a.startsWith("user"))return "#B5464A";
+    return "#7A6E62";
+  };
+
+  const fmt=(ts)=>{
+    try{ const d=new Date(ts); return d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})+" · "+d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}); }
+    catch{ return ts; }
+  };
+
+  const shown=(rows||[]).filter(r=>{
+    if(!filter.trim())return true;
+    const q=filter.toLowerCase();
+    return (r.actor_name||"").toLowerCase().includes(q)
+      || (r.target_name||"").toLowerCase().includes(q)
+      || labelFor(r.action).toLowerCase().includes(q)
+      || (r.detail||"").toLowerCase().includes(q);
+  });
+
+  return(
+    <div className="fu" style={{maxWidth:920,margin:"0 auto"}}>
+      <PageHeader title="🛡️ Audit Log" subtitle="A permanent, tamper-proof record of key actions. Entries cannot be edited or deleted."/>
+      <div style={{marginBottom:16}}>
+        <input value={filter} onChange={(e)=>setFilter(e.target.value)} placeholder="Filter by name, action, or detail..."
+          style={{width:"100%",maxWidth:420,padding:"10px 14px",borderRadius:10,border:"1px solid #DDD3C0",background:"#fff",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+      </div>
+      {err&&<div style={{padding:12,background:"#FBEAEA",border:"1px solid #E7B5B5",borderRadius:10,color:"#9B2C2C",fontSize:13,marginBottom:12}}>Could not load the audit log: {err}</div>}
+      {rows===null&&<div style={{padding:"40px 0",textAlign:"center",color:"#7A6E62",fontSize:14}}>Loading...</div>}
+      {rows!==null&&shown.length===0&&<div style={{padding:"40px 0",textAlign:"center",color:"#7A6E62",fontSize:14}}>No matching entries yet.</div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {shown.map(r=>(
+          <div key={r.id} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 16px",background:"#fff",border:"1px solid #EDE8DF",borderRadius:12}}>
+            <div style={{flexShrink:0,marginTop:2,padding:"3px 10px",borderRadius:20,background:colorFor(r.action)+"18",color:colorFor(r.action),fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{labelFor(r.action)}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,color:"#1A1612",marginBottom:2}}>
+                <strong>{r.actor_name||"Someone"}</strong>
+                <span style={{color:"#7A6E62"}}> ({r.actor_role||"?"}) </span>
+                {r.target_name&&<span>— {r.target_name}</span>}
+              </div>
+              {r.detail&&<div style={{fontSize:13,color:"#5A5048",marginBottom:2}}>{r.detail}</div>}
+              <div style={{fontSize:12,color:"#9A8F82"}}>{fmt(r.created_at)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export default function App(){
   const [user,setUser]=useState(null);
   const [authLoading,setAuthLoading]=useState(true);
@@ -3371,6 +3477,7 @@ export default function App(){
           {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes} children={children}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
+          {page==="audit-log"        &&<AuditLogPage user={user}/>}
         </main>
       </div>
     </>
