@@ -366,7 +366,7 @@ async function generateBulkChapters(reports, child){
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const NAV_BY_ROLE = {
   staff:  ["dashboard","children","new-chapter","chapters","approvals"],
-  manager:["dashboard","children","new-chapter","chapters","approvals","admin-users","audit-log"],
+  manager:["dashboard","children","new-chapter","chapters","approvals","admin-users"],
   admin:  ["admin-dashboard","children","new-chapter","chapters","approvals","admin-homes","admin-users","audit-log","admin-settings"],
   child:  ["my-story","my-progress"],
   social_worker: ["sw-stories"],
