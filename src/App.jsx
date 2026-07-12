@@ -14,6 +14,7 @@ async function logAudit(actor, action, target){
       target_id: target?.id != null ? String(target.id) : null,
       target_name: target?.name || null,
       home_id: actor?.homeId || null,
+      provider_id: actor?.providerId || null,
       detail: target?.detail || null,
     });
   }catch(e){ console.warn('audit log failed:', e?.message); }
@@ -518,6 +519,7 @@ function ChildrenPage({user,children,setChildren,chapters,setPage,setActiveChild
     // Insert into Supabase
     const {data,error}=await supabase.from('children').insert({
       home_id:targetHomeId,
+      provider_id:user.providerId,
       preferred_name:form.preferredName,
       dob:form.dob||null,
       gender:form.gender||null,
@@ -829,7 +831,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
   const saveEntry=async()=>{
     if(!result||!selectedChild) return;
     const isoDate=reportMonth?new Date(reportMonth+'-01').toISOString():result.reportDate?new Date(result.reportDate).toISOString():new Date().toISOString();
-    const row={child_id:selectedChild.id,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights: typeof result.staffInsights==="object" && result.staffInsights ? JSON.stringify(result.staffInsights) : (result.staffInsights||""),child_progress: typeof result.childProgress==="object" && result.childProgress ? JSON.stringify(result.childProgress) : (result.childProgress||"")};
+    const row={child_id:selectedChild.id,provider_id:user.providerId,title:result.chapter.title,content:result.chapter.content,date:isoDate,status:"pending",report_type:"monthly",staff_id:user.id,manager_id:null,staff_insights: typeof result.staffInsights==="object" && result.staffInsights ? JSON.stringify(result.staffInsights) : (result.staffInsights||""),child_progress: typeof result.childProgress==="object" && result.childProgress ? JSON.stringify(result.childProgress) : (result.childProgress||"")};
     const {data,error}=await supabase.from('chapters').insert(row).select().single();
     if(error){
       console.warn('chapter save failed, falling back to local',error.message);
@@ -870,6 +872,7 @@ function NewChapterPage({user,children,chapters,setChapters,activeChild,setActiv
       report_type:"monthly",
       staff_id:user.id,
       manager_id:null,
+      provider_id:user.providerId,
       staff_insights: typeof r.staffInsights==="object" && r.staffInsights ? JSON.stringify(r.staffInsights) : (r.staffInsights||""),
       child_progress:r.childProgress||"",
     }));
@@ -2236,7 +2239,7 @@ function AdminDashboard({homes,users,chapters,children=[],loading=false}){
   );
 }
 
-function AdminHomes({homes,setHomes,children=[]}){
+function AdminHomes({homes,setHomes,children=[],user}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({name:"",contact:"",plan:"starter"});
   const [editingId,setEditingId]=useState(null);
@@ -2270,6 +2273,7 @@ function AdminHomes({homes,setHomes,children=[]}){
         contact:form.contact,
         plan:form.plan||"home",
         status:"active",
+        provider_id:user.providerId,
       }).select().single();
       if(error){
         console.warn('homes insert failed, falling back to local',error.message);
@@ -3001,7 +3005,7 @@ function SignInModal({onLogin,onClose}){
         // Load profile row for this user — has role and home_id
         const {data:profile,error:profileError}=await supabase
           .from('profiles')
-          .select('id,name,role,home_id,subscription,child_id')
+          .select('id,name,role,home_id,subscription,child_id,provider_id')
           .eq('id',r.data.user.id)
           .single();
         if(profileError||!profile){
@@ -3015,6 +3019,7 @@ function SignInModal({onLogin,onClose}){
           email:r.data.user.email,
           role:profile.role||'staff',
           homeId:profile.home_id,
+          providerId:profile.provider_id,
           childId:profile.child_id,
           subscription:profile.subscription||'active',
         });
@@ -3358,7 +3363,7 @@ export default function App(){
       if(!session||!session.user){ setAuthLoading(false); return; }
       const {data:profile,error:profileError}=await supabase
         .from('profiles')
-        .select('id,name,role,home_id,subscription,child_id')
+        .select('id,name,role,home_id,subscription,child_id,provider_id')
         .eq('id',session.user.id)
         .single();
       if(cancelled) return;
@@ -3382,6 +3387,7 @@ export default function App(){
         email:session.user.email,
         role:profile.role||'staff',
         homeId:profile.home_id,
+        providerId:profile.provider_id,
         childId:profile.child_id,
         subscription:profile.subscription||'active',
       });
@@ -3474,7 +3480,7 @@ export default function App(){
           {page==="my-progress"      &&<ChildProgressPage user={user} chapters={chapters} children={children}/>}
           {effPage==="sw-stories"    &&<SocialWorkerView  user={user} chapters={chapters} children={children}/>}
           {page==="admin-dashboard"  &&<AdminDashboard    homes={homes} users={allUsers} chapters={chapters} children={children} loading={bootLoading}/>}
-          {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes} children={children}/>}
+          {page==="admin-homes"      &&<AdminHomes        homes={homes} setHomes={setHomes} children={children} user={user}/>}
           {page==="admin-users"      &&<AdminUsers        users={allUsers} setUsers={setAllUsers} homes={homes} user={user} children={children}/>}
           {page==="admin-settings"   &&<AdminSettings/>}
           {page==="audit-log"        &&<AuditLogPage user={user}/>}
